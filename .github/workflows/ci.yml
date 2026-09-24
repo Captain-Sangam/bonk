@@ -13,4 +13,4 @@ jobs:
       - name: Toolchain
         run: xcodebuild -version && swift --version
       - name: Build, test, and package
-        run: make app
+        run: make verify app

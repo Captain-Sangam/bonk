@@ -37,7 +37,7 @@ Mouse movement, clicks, scrolling, typing, and shortcut attempts produce differe
 
 - macOS 13 or newer
 - Swift 5.10 or newer
-- Xcode 15.4 or newer for tests and normal development
+- Xcode 15.4 or newer only for the XCTest suite and contributor verification
 - Accessibility permission to suppress global input
 - Touch ID or another device-owner method supported by macOS
 
@@ -55,7 +55,7 @@ git clone https://github.com/Captain-Sangam/bonk.git && cd bonk
 make run
 ```
 
-The built app is written to `dist/Bonk.app` and ad-hoc signed. On first launch, grant Bonk access under **System Settings → Privacy & Security → Accessibility**. If macOS retains permission for an earlier build, disable and re-enable the entry.
+The built app is written to `dist/Bonk.app` and ad-hoc signed. `make run` works with the standalone Command Line Tools; contributors can use `make verify` with full Xcode to include the XCTest suite. On first launch, grant Bonk access under **System Settings → Privacy & Security → Accessibility**. If macOS retains permission for an earlier build, disable and re-enable the entry.
 
 Activate Bonk from the menu-bar paw with **Bonk this Mac** or the configured `⇧⌘B` shortcut.
 

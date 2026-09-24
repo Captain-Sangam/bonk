@@ -26,14 +26,14 @@ make run
 
 Grant Accessibility permission only to a locally built binary you trust. macOS may require you to toggle the permission after rebuilding.
 
-Useful targets are `make verify` for all checks, `make app` for a signed bundle, `make run` to build and launch, and `make screenshots` to regenerate the checked-in character previews.
+Useful targets are `make validate` for build-time checks, `make verify` to include the XCTest suite, `make app` for a signed bundle, `make run` to build and launch, and `make screenshots` to regenerate the checked-in character previews. Full Xcode is required only for `make verify`.
 
 ## Pull requests
 
 Keep pull requests narrow and explain the user-visible behavior. Include tests for logic changes and screenshots for visible changes. Before submitting, run:
 
 ```sh
-make app
+make verify app
 ```
 
 Use clear commit messages and do not commit `.build/`, `dist/`, credentials, developer signing identities, or local Xcode state.
