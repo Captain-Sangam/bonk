@@ -13,7 +13,10 @@ public final class InputInterceptor: InputIntercepting {
     private var runLoopSource: CFRunLoopSource?
     private var watchdog: Timer?
     private var lastClickDate = Date.distantPast
-    private var lastMovementSignalDate = Date.distantPast
+    private var lastMovementSignalDate: Date?
+    private var virtualMouseLocation: CGPoint?
+    private var pendingMovementDeltaX: Double = 0
+    private var pendingMovementDeltaY: Double = 0
 
     public init() {}
 
@@ -60,6 +63,7 @@ public final class InputInterceptor: InputIntercepting {
         runLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+        virtualMouseLocation = NSEvent.mouseLocation
         isRunning = true
         startWatchdog()
     }
@@ -79,6 +83,10 @@ public final class InputInterceptor: InputIntercepting {
         runLoopSource = nil
         eventTap = nil
         isRunning = false
+        lastMovementSignalDate = nil
+        virtualMouseLocation = nil
+        pendingMovementDeltaX = 0
+        pendingMovementDeltaY = 0
     }
 
     fileprivate func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
@@ -91,16 +99,46 @@ public final class InputInterceptor: InputIntercepting {
         }
 
         let now = Date()
-        let location = NSEvent.mouseLocation
+        let eventLocation = Self.appKitLocation(for: event.location)
+        var location = virtualMouseLocation ?? eventLocation
 
         switch type {
         case .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged:
-            if now.timeIntervalSince(lastMovementSignalDate) >= 0.08 {
+            let eventDeltaX = Double(event.getIntegerValueField(.mouseEventDeltaX))
+            let eventDeltaY = -Double(event.getIntegerValueField(.mouseEventDeltaY))
+            location = Self.clampToDisplays(
+                CGPoint(
+                    x: location.x + eventDeltaX,
+                    y: location.y + eventDeltaY
+                )
+            )
+            virtualMouseLocation = location
+            pendingMovementDeltaX += eventDeltaX
+            pendingMovementDeltaY += eventDeltaY
+
+            let elapsed = lastMovementSignalDate.map { now.timeIntervalSince($0) } ?? .infinity
+            if elapsed >= 1.0 / 60.0 {
+                let deltaX = pendingMovementDeltaX
+                let deltaY = pendingMovementDeltaY
+                let distance = hypot(deltaX, deltaY)
+                let speed = elapsed.isFinite && elapsed > 0 ? distance / elapsed : 0
                 lastMovementSignalDate = now
-                onSignal?(InteractionSignal(kind: .mouseMovement, timestamp: now, globalLocation: location))
+                pendingMovementDeltaX = 0
+                pendingMovementDeltaY = 0
+                onSignal?(
+                    InteractionSignal(
+                        kind: .mouseMovement,
+                        timestamp: now,
+                        globalLocation: location,
+                        magnitude: speed,
+                        deltaX: deltaX,
+                        deltaY: deltaY
+                    )
+                )
             }
 
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
+            virtualMouseLocation = location
             let isRapid = now.timeIntervalSince(lastClickDate) < 0.35
             lastClickDate = now
             onSignal?(
@@ -112,14 +150,16 @@ public final class InputInterceptor: InputIntercepting {
             )
 
         case .scrollWheel:
-            let vertical = abs(event.getDoubleValueField(.scrollWheelEventPointDeltaAxis1))
-            let horizontal = abs(event.getDoubleValueField(.scrollWheelEventPointDeltaAxis2))
+            let vertical = event.getDoubleValueField(.scrollWheelEventPointDeltaAxis1)
+            let horizontal = event.getDoubleValueField(.scrollWheelEventPointDeltaAxis2)
             onSignal?(
                 InteractionSignal(
                     kind: .scroll,
                     timestamp: now,
                     globalLocation: location,
-                    magnitude: max(vertical, horizontal)
+                    magnitude: max(abs(vertical), abs(horizontal)),
+                    deltaX: horizontal,
+                    deltaY: vertical
                 )
             )
 
@@ -142,6 +182,25 @@ public final class InputInterceptor: InputIntercepting {
 
         // Returning nil suppresses the event before it reaches applications.
         return nil
+    }
+
+    private static func appKitLocation(for quartzLocation: CGPoint) -> CGPoint {
+        // CGEvent uses a top-left global origin while AppKit screen frames use
+        // the bottom-left of the primary display. The same transform continues
+        // to work for displays arranged above or below the primary display.
+        let primaryTop = NSScreen.screens.first?.frame.maxY ?? 0
+        return CGPoint(x: quartzLocation.x, y: primaryTop - quartzLocation.y)
+    }
+
+    private static func clampToDisplays(_ point: CGPoint) -> CGPoint {
+        let displayBounds = NSScreen.screens.reduce(CGRect.null) { partial, screen in
+            partial.union(screen.frame)
+        }
+        guard !displayBounds.isNull, !displayBounds.isEmpty else { return point }
+        return CGPoint(
+            x: min(max(point.x, displayBounds.minX), displayBounds.maxX - 1),
+            y: min(max(point.y, displayBounds.minY), displayBounds.maxY - 1)
+        )
     }
 
     private func startWatchdog() {

@@ -25,6 +25,8 @@ final class ReactionEngineTests: XCTestCase {
         XCTAssertEqual(snapshot.interactionRate, .low)
         XCTAssertEqual(snapshot.sessionDuration, .justStarted)
         XCTAssertEqual(snapshot.escalationLevel, 2)
+        XCTAssertEqual(snapshot.motionEnergy, .still)
+        XCTAssertEqual(snapshot.coarseDirection, .stationary)
 
         let encoded = String(data: try JSONEncoder().encode(snapshot), encoding: .utf8)!
         XCTAssertFalse(encoded.contains("417"))
@@ -84,7 +86,7 @@ final class ReactionEngineTests: XCTestCase {
             .click: .bonk,
             .rapidClick: .repeatBonk,
             .keyboardActivity: .annoyed,
-            .scroll: .tumble,
+            .scroll: .cling,
             .shortcutAttempt: .blockShortcut
         ]
 
@@ -103,6 +105,73 @@ final class ReactionEngineTests: XCTestCase {
             XCTAssertEqual(plan.intent, intent)
             XCTAssertEqual(plan.source, .local)
         }
+    }
+
+    func testMotionAwareLocalReactionsHaveDistinctBehaviors() {
+        let provider = LocalReactionProvider()
+        let cases: [(ReactionSnapshot, ReactionIntent)] = [
+            (
+                makeLocalSnapshot(
+                    interaction: .mouseMovement,
+                    count: 2,
+                    escalation: 2,
+                    motionEnergy: .frantic
+                ),
+                .pounce
+            ),
+            (
+                makeLocalSnapshot(
+                    interaction: .mouseMovement,
+                    count: 6,
+                    escalation: 3,
+                    motionEnergy: .gentle
+                ),
+                .stalkCursor
+            ),
+            (makeLocalSnapshot(interaction: .click, count: 2, escalation: 2), .swat),
+            (makeLocalSnapshot(interaction: .keyboardActivity, count: 3, escalation: 3), .coverEars),
+            (
+                makeLocalSnapshot(
+                    interaction: .scroll,
+                    count: 1,
+                    escalation: 2,
+                    motionEnergy: .quick
+                ),
+                .tumble
+            )
+        ]
+
+        for (snapshot, expectedIntent) in cases {
+            XCTAssertEqual(provider.immediateReaction(for: snapshot).intent, expectedIntent)
+        }
+    }
+
+    func testAggregatorBucketsPointerMotionWithoutLeakingThePath() throws {
+        var aggregator = InteractionAggregator()
+        let start = Date(timeIntervalSince1970: 4_000)
+        aggregator.reset(at: start)
+
+        let snapshot = aggregator.record(
+            InteractionSignal(
+                kind: .mouseMovement,
+                timestamp: start.addingTimeInterval(1),
+                globalLocation: CGPoint(x: 913, y: 427),
+                magnitude: 1_450,
+                deltaX: -84,
+                deltaY: 7
+            ),
+            characterState: "walk",
+            displayIndex: 1,
+            cursorRegion: .left
+        )
+
+        XCTAssertEqual(snapshot.motionEnergy, .frantic)
+        XCTAssertEqual(snapshot.coarseDirection, .left)
+
+        let encoded = String(data: try JSONEncoder().encode(snapshot), encoding: .utf8)!
+        XCTAssertFalse(encoded.contains("913"))
+        XCTAssertFalse(encoded.contains("427"))
+        XCTAssertFalse(encoded.contains("-84"))
     }
 
     func testPersistentActivityAlwaysPointsToAuthentication() {
@@ -190,6 +259,25 @@ final class ReactionEngineTests: XCTestCase {
             currentCharacterState: "annoyed",
             displayIndex: 0,
             cursorRegion: .right
+        )
+    }
+
+    private func makeLocalSnapshot(
+        interaction: InteractionKind,
+        count: Int,
+        escalation: Int,
+        motionEnergy: MotionEnergy = .still
+    ) -> ReactionSnapshot {
+        ReactionSnapshot(
+            interaction: interaction,
+            recentEventCounts: [interaction.rawValue: count],
+            interactionRate: count >= 5 ? .high : .medium,
+            sessionDuration: .short,
+            escalationLevel: escalation,
+            currentCharacterState: "idle",
+            displayIndex: 0,
+            cursorRegion: .center,
+            motionEnergy: motionEnergy
         )
     }
 

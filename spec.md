@@ -502,6 +502,8 @@ InteractionAggregator coalesces bursts of activity into a snapshot. A snapshot m
 * current character state
 * current display identifier local to the session
 * coarse cursor region when needed for animation planning
+* coarse motion-energy bucket, such as still, gentle, quick or frantic
+* coarse dominant direction without the underlying pointer coordinates
 
 A snapshot must never include:
 
@@ -516,11 +518,16 @@ Jev should use a Choice question to select one allowlisted reaction intent, for 
 
 notice
 followCursor
+stalkCursor
+pounce
 bonk
+swat
 repeatBonk
 annoyed
+coverEars
 angry
 blockShortcut
+cling
 tumble
 pointToTouchID
 
@@ -936,6 +943,10 @@ Avoid introducing a full game engine for v1.
 Bonk does not need Unity, Godot, Phaser, or Electron.
 
 Character animation can be implemented using native macOS rendering.
+
+The shipping character must use custom artwork rather than system emoji. Pointer tracking should update smoothly from local attempted-movement deltas even while the underlying mouse event is suppressed. Exact pointer coordinates and paths remain local to CharacterEngine and must not be included in Jev requests.
+
+The initial character must have visibly distinct poses or props for waking, tracking, stalking, pouncing, bonking, swatting, typing, shortcut blocking, scrolling, tumbling, authentication pointing and celebration. Repeated events should vary both dialogue and motion instead of replaying one generic pose.
 
 Potential asset formats:
 

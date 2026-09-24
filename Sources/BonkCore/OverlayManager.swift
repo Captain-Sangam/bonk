@@ -123,28 +123,43 @@ private struct CharacterOverlayView: View {
     var body: some View {
         GeometryReader { geometry in
             if shouldRender {
-                VStack(spacing: 5) {
-                    if let message = characterEngine.presentation.message {
-                        Text(message)
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.primary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .background(.regularMaterial, in: Capsule())
-                            .shadow(radius: 4, y: 2)
+                ZStack {
+                    if let cursor = characterEngine.presentation.cursorPosition {
+                        BonkCursorTargetView(presentation: characterEngine.presentation)
+                            .position(
+                                x: cursor.x * geometry.size.width,
+                                y: (1 - cursor.y) * geometry.size.height
+                            )
                     }
 
-                    Text(characterEmoji)
-                        .font(.system(size: 58))
-                        .shadow(color: .black.opacity(0.25), radius: 5, y: 3)
-                        .rotationEffect(rotation)
-                        .scaleEffect(scale)
+                    VStack(spacing: 1) {
+                        if let message = characterEngine.presentation.message {
+                            Text(message)
+                                .font(.system(size: 15, weight: .bold, design: .rounded))
+                                .foregroundStyle(Color.white)
+                                .padding(.horizontal, 13)
+                                .padding(.vertical, 8)
+                                .background(
+                                    Color(red: 0.13, green: 0.10, blue: 0.22).opacity(0.94),
+                                    in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                                )
+                                .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
+                                .transition(.scale.combined(with: .opacity))
+                        }
+
+                        BonkCharacterView(presentation: characterEngine.presentation)
+                            .shadow(color: .black.opacity(0.25), radius: 5, y: 4)
+                    }
+                    .position(
+                        x: characterEngine.presentation.position.x * geometry.size.width,
+                        y: (1 - characterEngine.presentation.position.y) * geometry.size.height
+                    )
                 }
-                .position(
-                    x: characterEngine.presentation.position.x * geometry.size.width,
-                    y: (1 - characterEngine.presentation.position.y) * geometry.size.height
-                )
-                .animation(.spring(response: 0.32, dampingFraction: 0.68), value: characterEngine.presentation)
+                .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.72), value: characterEngine.presentation)
             }
         }
         .ignoresSafeArea()
@@ -152,21 +167,4 @@ private struct CharacterOverlayView: View {
         .background(Color.clear)
     }
 
-    private var characterEmoji: String {
-        switch characterEngine.presentation.state {
-        case .sleeping: return "😴"
-        case .angry: return "😾"
-        case .celebrate: return "😸"
-        case .point: return "😼☝️"
-        default: return "😼"
-        }
-    }
-
-    private var rotation: Angle {
-        characterEngine.presentation.state == .tumble ? .degrees(25) : .zero
-    }
-
-    private var scale: CGFloat {
-        characterEngine.presentation.state == .bonk ? 1.22 : 1
-    }
 }

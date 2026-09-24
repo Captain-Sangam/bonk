@@ -12,7 +12,8 @@ Bonk is not a replacement for the macOS Lock Screen. Anything visible before Gua
 - Transparent AppKit overlay on every connected display
 - Native `LocalAuthentication` Touch ID/password flow
 - Sleep prevention while Guard Mode is active
-- Cat reactions for pointer, click, keyboard, shortcut, and scroll activity
+- Custom vector cat with gaze tracking, animated gait, props, and expressive state-specific poses
+- Speed- and direction-aware pointer tracking with pounce, stalk, bonk, swat, cling, tumble, and typing reactions
 - Optional TypeSafe AI Jev reaction selection with strict typed validation
 - Immediate deterministic local reactions and complete offline fallback
 - First-launch privacy and permission onboarding
@@ -34,6 +35,7 @@ The detailed product and safety requirements live in [spec.md](spec.md).
 swift build
 swift test
 swift run BonkChecks
+swift run BonkCharacterGallery /tmp/bonk-character-gallery.png
 ```
 
 Build an ad-hoc signed `.app` bundle:
@@ -49,7 +51,7 @@ The first launch asks for Accessibility access. If macOS does not refresh the pe
 
 AI reactions are opt-in. Add a TypeSafe API key in Bonk Settings or set `TYPESAFE_API_KEY` for a development launch. The key is stored in the macOS Keychain when entered in Settings and is sent only as an authorization header.
 
-Jev receives a compact JSON snapshot containing categories and aggregates such as `rapidClick`, recent counts, an intensity bucket, and a coarse cursor region. Bonk never sends typed characters, key codes, screen contents, window titles, clipboard contents, filenames, URLs, or precise cursor history.
+Jev receives a compact JSON snapshot containing categories and aggregates such as `rapidClick`, recent counts, a motion-energy bucket, coarse direction, and a coarse cursor region. Precise pointer coordinates and paths stay local so they can drive fluid animation without leaving the Mac. Bonk never sends typed characters, key codes, screen contents, window titles, clipboard contents, filenames, URLs, or precise cursor history.
 
 Jev is outside the safety-critical path. Input interception, authentication, cleanup, and offline reactions do not depend on the network or model.
 

@@ -26,6 +26,11 @@ let package = Package(
             dependencies: ["BonkCore"],
             path: "Checks"
         ),
+        .executableTarget(
+            name: "BonkCharacterGallery",
+            dependencies: ["BonkCore"],
+            path: "Tools/CharacterGallery"
+        ),
         .testTarget(
             name: "BonkCoreTests",
             dependencies: ["BonkCore"],

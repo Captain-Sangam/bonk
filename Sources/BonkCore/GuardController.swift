@@ -98,7 +98,12 @@ public final class GuardController: ObservableObject {
         }
 
         if signal.kind != .mouseMovement {
-            scheduleAuthentication(afterNanoseconds: 850_000_000)
+            // Let the full local reaction land, and restart the grace period as
+            // a burst continues. Authentication still remains deterministic,
+            // but it no longer interrupts the character after the first click.
+            authenticationTask?.cancel()
+            authenticationScheduled = false
+            scheduleAuthentication(afterNanoseconds: 2_200_000_000)
         }
     }
 
