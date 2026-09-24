@@ -10,6 +10,8 @@
     <string>Bonk</string>
     <key>CFBundleIdentifier</key>
     <string>com.captainsangam.bonk</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
@@ -27,7 +29,7 @@
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSHumanReadableCopyright</key>
-    <string>Copyright © 2026 Captain Sangam</string>
+    <string>Copyright © 2026 Captain-sangam</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
 </dict>

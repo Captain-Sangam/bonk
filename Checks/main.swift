@@ -47,6 +47,9 @@ private struct BonkChecks {
     }
 
     private static func runChecks() async throws {
+        try require(BonkBrandAssets.foxLogo != nil, "Fox logo resource could not be loaded")
+        try require(BonkBrandAssets.appIcon != nil, "App icon resource could not be loaded")
+
         var aggregator = InteractionAggregator()
         let start = Date(timeIntervalSince1970: 1_000)
         aggregator.reset(at: start)

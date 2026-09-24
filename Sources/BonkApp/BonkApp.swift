@@ -32,6 +32,9 @@ final class BonkAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApplication.shared.setActivationPolicy(.accessory)
+        if let appIcon = BonkBrandAssets.appIcon {
+            NSApplication.shared.applicationIconImage = appIcon
+        }
         guard let model = Self.model else { return }
         model.start()
         if !model.settings.onboardingComplete {
@@ -41,6 +44,35 @@ final class BonkAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         Self.model?.shutdown()
+    }
+}
+
+@MainActor
+private final class AboutWindowController {
+    static let shared = AboutWindowController()
+
+    private var window: NSWindow?
+
+    func show() {
+        if let window {
+            window.makeKeyAndOrderFront(nil)
+            NSApplication.shared.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 360, height: 390),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "About Bonk"
+        window.isReleasedWhenClosed = false
+        window.contentView = NSHostingView(rootView: AboutView())
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        self.window = window
+        NSApplication.shared.activate(ignoringOtherApps: true)
     }
 }
 
@@ -91,7 +123,10 @@ private struct MenuBarLabel: View {
     }
 
     var body: some View {
-        Image(systemName: guardController.isGuarding ? "pawprint.fill" : "pawprint")
+        BonkLogoView(size: 19)
+            .saturation(guardController.isGuarding ? 1 : 0.78)
+            .opacity(guardController.isGuarding ? 1 : 0.88)
+            .accessibilityLabel(guardController.isGuarding ? "Bonk guarding" : "Bonk")
     }
 }
 
@@ -139,14 +174,7 @@ private struct MenuBarContent: View {
         }
 
         Button("About Bonk") {
-            NSApplication.shared.orderFrontStandardAboutPanel(
-                options: [
-                    .applicationName: "Bonk",
-                    .applicationVersion: "0.1.0",
-                    .credits: NSAttributedString(string: "Hands off. Bonk on.")
-                ]
-            )
-            NSApplication.shared.activate(ignoringOtherApps: true)
+            AboutWindowController.shared.show()
         }
 
         Divider()

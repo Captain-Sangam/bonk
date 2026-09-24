@@ -29,3 +29,27 @@ Subject poses in exact row-major order: sleepy guarded idle; startled wake-up; a
 Constraints: exact 4x4 layout; transparent background; one character per cell; exactly one tail on every fox; consistent character identity; no text; no labels; no letters; no numbers; no logos; no symbols on clothing; no grid lines; no background scene; no watermark.
 Avoid: character redesign, inconsistent costume or fur markings, extra tails, missing mallet where specified, cropped ears or tail, poses touching adjacent cells, photorealism, 3D rendering.
 ```
+
+## Fox-face brand mark
+
+```text
+Use case: logo-brand
+Asset type: master fox-face brand mark for a macOS menu-bar app, About window, documentation, and small UI placements
+Input images: the Bonk concept sheet is the authoritative character reference
+Primary request: Create a clean standalone head-and-upper-neck logo of the Bonk fox, preserving the oversized dark-brown-tipped ears, burnt-orange fur, warm cream inner ears and broad cream cheek/muzzle shape, spiky forehead tuft, large expressive dark oval eyes, small dark nose, and confident friendly smile.
+Style/medium: polished flat vector-like cel-animation logo mark with bold smooth dark outlines and restrained shading
+Composition/framing: centered near-front three-quarter face, ears fully visible, compact silhouette, transparent padding, readable at 18 pixels
+Constraints: genuinely transparent background; one fox face only; no text; no badge; no mallet; no paws; no tail; no watermark
+```
+
+## macOS app icon
+
+```text
+Use case: logo-brand
+Asset type: production macOS application icon master
+Input images: the approved Bonk fox-face mark is the authoritative identity reference
+Primary request: Place the same Bonk fox face prominently inside a polished deep-indigo rounded-square app-icon composition with a warm coral inner accent.
+Style/medium: premium flat cel-animation app icon, bold clean outlines, restrained depth, crisp at small sizes
+Composition/framing: centered head fills roughly 72 percent of the icon; balanced padding around ear tips
+Constraints: preserve the face identity; no text; no mallet; no body; no tail; no symbols; transparent pixels outside the rounded-square icon; no watermark
+```

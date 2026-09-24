@@ -1,6 +1,12 @@
-# Bonk
+<p align="center">
+  <img src="Sources/BonkCore/Resources/bonk-app-icon.png" width="144" alt="Bonk fox app icon">
+</p>
 
-**A playful input guard for macOS.** Keep your desktop visible and your Mac awake while a tiny fox blocks unwanted keyboard, mouse, and trackpad input.
+<h1 align="center">Bonk</h1>
+
+<p align="center"><strong>A playful input guard for macOS.</strong></p>
+
+Keep your desktop visible and your Mac awake while a tiny fox blocks unwanted keyboard, mouse, and trackpad input.
 
 ![Bonk guarding a visible desktop](docs/images/guard-mode-preview.png)
 
