@@ -43,14 +43,16 @@ Mouse movement, clicks, scrolling, typing, and shortcut attempts produce differe
 
 ## Build from source
 
+1. Clone the repository:
+
 ```sh
-git clone https://github.com/Captain-Sangam/bonk.git
-cd bonk
-swift build
-swift test
-swift run BonkChecks
-Scripts/build-app.sh
-open dist/Bonk.app
+git clone https://github.com/Captain-Sangam/bonk.git && cd bonk
+```
+
+2. Build, validate, package, and launch Bonk:
+
+```sh
+make run
 ```
 
 The built app is written to `dist/Bonk.app` and ad-hoc signed. On first launch, grant Bonk access under **System Settings → Privacy & Security → Accessibility**. If macOS retains permission for an earlier build, disable and re-enable the entry.
