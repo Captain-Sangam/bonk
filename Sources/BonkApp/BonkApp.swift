@@ -164,13 +164,6 @@ private struct MenuBarContent: View {
 
         Toggle("Keep Awake", isOn: $settings.keepAwake)
 
-        HStack {
-            Text("Character")
-            Spacer()
-            Text("Fox")
-                .foregroundStyle(.secondary)
-        }
-
         Divider()
 
         Button("Settings…") {
