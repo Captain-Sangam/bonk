@@ -78,3 +78,7 @@ Jev receives only coarse, aggregated interaction metadata. It never receives typ
 Contributions are welcome. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, validation, safety invariants, and asset guidelines. Please report vulnerabilities using [`SECURITY.md`](SECURITY.md).
 
 Bonk is early-stage software. Review the code and understand the Accessibility permission before relying on it.
+
+## License
+
+Bonk is available under the [MIT License](LICENSE).
