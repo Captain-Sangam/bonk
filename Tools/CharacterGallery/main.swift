@@ -6,12 +6,32 @@ import SwiftUI
 @MainActor
 private struct BonkCharacterGallery {
     static func main() throws {
-        let outputURL = URL(
-            fileURLWithPath: CommandLine.arguments.dropFirst().first
-                ?? "/private/tmp/bonk-character-gallery.png"
+        let arguments = Array(CommandLine.arguments.dropFirst())
+        let galleryURL = URL(
+            fileURLWithPath: arguments.first ?? "/private/tmp/bonk-character-gallery.png"
         )
-        let size = CGSize(width: 900, height: 850)
-        let view = CharacterGalleryView()
+        try render(
+            CharacterGalleryView(),
+            size: CGSize(width: 900, height: 850),
+            to: galleryURL
+        )
+
+        if arguments.count > 1 {
+            let previewURL = URL(fileURLWithPath: arguments[1])
+            try render(
+                GuardModePreviewView(),
+                size: CGSize(width: 1200, height: 760),
+                to: previewURL
+            )
+        }
+    }
+
+    private static func render<Content: View>(
+        _ content: Content,
+        size: CGSize,
+        to outputURL: URL
+    ) throws {
+        let view = content
             .frame(width: size.width, height: size.height)
             .background(Color(red: 0.055, green: 0.06, blue: 0.09))
 
@@ -28,6 +48,118 @@ private struct BonkCharacterGallery {
         }
         try png.write(to: outputURL, options: .atomic)
         print("Rendered \(outputURL.path)")
+    }
+}
+
+private struct GuardModePreviewView: View {
+    private let presentation = CharacterPresentation(
+        state: .bonk,
+        message: "BONK!",
+        position: .resting,
+        intensity: 0.9,
+        lookX: 0.65,
+        lookY: 0.2,
+        facing: 1,
+        motionSpeed: 0.8,
+        variant: 3,
+        reactionStartedAt: Date.timeIntervalSinceReferenceDate - 0.2
+    )
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.08, green: 0.11, blue: 0.19),
+                    Color(red: 0.18, green: 0.12, blue: 0.25)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            VStack(spacing: 0) {
+                HStack(spacing: 12) {
+                    Circle().fill(Color.white.opacity(0.82)).frame(width: 10, height: 10)
+                    Text("Bonk is guarding this Mac")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    Spacer()
+                    Text("Press Esc twice to unlock")
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundStyle(Color.white.opacity(0.72))
+                }
+                .foregroundStyle(Color.white)
+                .padding(.horizontal, 22)
+                .frame(height: 48)
+                .background(Color.black.opacity(0.28))
+
+                Spacer()
+            }
+
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.white.opacity(0.065))
+                .frame(width: 650, height: 350)
+                .overlay(alignment: .topLeading) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Capsule().fill(Color.white.opacity(0.16)).frame(width: 210, height: 18)
+                        Capsule().fill(Color.white.opacity(0.1)).frame(width: 510, height: 12)
+                        Capsule().fill(Color.white.opacity(0.1)).frame(width: 440, height: 12)
+                        HStack(spacing: 14) {
+                            ForEach(0..<3) { _ in
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.white.opacity(0.07))
+                                    .frame(width: 155, height: 170)
+                            }
+                        }
+                        .padding(.top, 12)
+                    }
+                    .padding(30)
+                }
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+                .offset(x: -95, y: 15)
+
+            Circle()
+                .stroke(Color.white.opacity(0.52), lineWidth: 3)
+                .frame(width: 34, height: 34)
+                .overlay(Circle().fill(Color.white).frame(width: 7, height: 7))
+                .shadow(color: .black.opacity(0.35), radius: 5, y: 3)
+                .offset(x: 305, y: 92)
+
+            VStack(spacing: 2) {
+                Text("BONK!")
+                    .font(.system(size: 28, weight: .black, design: .rounded))
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(
+                        Color(red: 0.12, green: 0.08, blue: 0.2).opacity(0.96),
+                        in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(Color.white.opacity(0.28), lineWidth: 1)
+                    )
+
+                BonkCharacterView(presentation: presentation)
+                    .scaleEffect(1.65)
+                    .frame(width: 230, height: 235)
+                    .shadow(color: .black.opacity(0.35), radius: 9, y: 6)
+            }
+            .offset(x: 390, y: 170)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("INPUT BLOCKED. REACTION ENABLED.")
+                    .font(.system(size: 29, weight: .black, design: .rounded))
+                Text("Your desktop stays visible. Bonk handles the rest.")
+                    .font(.system(size: 18, weight: .medium, design: .rounded))
+                    .foregroundStyle(Color.white.opacity(0.68))
+            }
+            .foregroundStyle(Color.white)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            .padding(38)
+        }
+        .background(Color(red: 0.055, green: 0.06, blue: 0.09))
     }
 }
 
@@ -105,6 +237,7 @@ private struct CharacterGalleryView: View {
             }
         }
         .padding(24)
+        .background(Color(red: 0.055, green: 0.06, blue: 0.09))
     }
 
     private func previewElapsed(for state: CharacterState) -> TimeInterval {
