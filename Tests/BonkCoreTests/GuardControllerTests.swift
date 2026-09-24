@@ -2,8 +2,8 @@ import Foundation
 import XCTest
 @testable import BonkCore
 
-@MainActor
 final class GuardControllerTests: XCTestCase {
+    @MainActor
     func testActivationStartsEveryGuardResourceAndShutdownCleansUp() {
         let fixture = makeFixture()
 
@@ -26,6 +26,7 @@ final class GuardControllerTests: XCTestCase {
         XCTAssertEqual(fixture.reactions.endCount, 1)
     }
 
+    @MainActor
     func testInputInterceptorFailureImmediatelyFailsOpen() async {
         let fixture = makeFixture()
         fixture.controller.activate()
@@ -41,6 +42,7 @@ final class GuardControllerTests: XCTestCase {
         XCTAssertNotNil(fixture.controller.lastError)
     }
 
+    @MainActor
     func testFailedInputStartupRollsBackPreviouslyStartedResources() {
         let fixture = makeFixture()
         fixture.input.startError = BonkError.eventTapCreationFailed
@@ -55,6 +57,7 @@ final class GuardControllerTests: XCTestCase {
         XCTAssertEqual(fixture.controller.lastError, BonkError.eventTapCreationFailed.localizedDescription)
     }
 
+    @MainActor
     func testFailedOverlayStartupNeverStartsInputAndRollsBackSession() {
         let fixture = makeFixture()
         fixture.overlay.showError = BonkError.overlayUnavailable("No display")
@@ -70,6 +73,7 @@ final class GuardControllerTests: XCTestCase {
         XCTAssertNotNil(fixture.controller.lastError)
     }
 
+    @MainActor
     private func makeFixture() -> Fixture {
         let suiteName = "BonkCoreTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
