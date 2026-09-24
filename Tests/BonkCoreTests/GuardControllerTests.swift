@@ -1,0 +1,156 @@
+import Foundation
+import XCTest
+@testable import BonkCore
+
+@MainActor
+final class GuardControllerTests: XCTestCase {
+    func testActivationStartsEveryGuardResourceAndShutdownCleansUp() {
+        let fixture = makeFixture()
+
+        fixture.controller.activate()
+
+        XCTAssertEqual(fixture.controller.status, .armed)
+        XCTAssertEqual(fixture.input.startCount, 1)
+        XCTAssertTrue(fixture.input.isRunning)
+        XCTAssertEqual(fixture.awake.startCount, 1)
+        XCTAssertEqual(fixture.overlay.showCount, 1)
+        XCTAssertEqual(fixture.reactions.beginCount, 1)
+
+        fixture.controller.shutdown()
+
+        XCTAssertEqual(fixture.controller.status, .idle)
+        XCTAssertFalse(fixture.input.isRunning)
+        XCTAssertGreaterThanOrEqual(fixture.input.stopCount, 1)
+        XCTAssertEqual(fixture.awake.stopCount, 1)
+        XCTAssertEqual(fixture.overlay.hideCount, 1)
+        XCTAssertEqual(fixture.reactions.endCount, 1)
+    }
+
+    func testInputInterceptorFailureImmediatelyFailsOpen() async {
+        let fixture = makeFixture()
+        fixture.controller.activate()
+
+        fixture.input.onFailure?(.eventTapDisabled)
+        await Task.yield()
+
+        XCTAssertEqual(fixture.controller.status, .idle)
+        XCTAssertFalse(fixture.input.isRunning)
+        XCTAssertEqual(fixture.awake.stopCount, 1)
+        XCTAssertEqual(fixture.overlay.hideCount, 1)
+        XCTAssertEqual(fixture.reactions.endCount, 1)
+        XCTAssertNotNil(fixture.controller.lastError)
+    }
+
+    func testFailedInputStartupRollsBackPreviouslyStartedResources() {
+        let fixture = makeFixture()
+        fixture.input.startError = BonkError.eventTapCreationFailed
+
+        fixture.controller.activate()
+
+        XCTAssertEqual(fixture.controller.status, .idle)
+        XCTAssertFalse(fixture.input.isRunning)
+        XCTAssertEqual(fixture.awake.stopCount, 1)
+        XCTAssertEqual(fixture.overlay.hideCount, 1)
+        XCTAssertEqual(fixture.reactions.endCount, 1)
+        XCTAssertEqual(fixture.controller.lastError, BonkError.eventTapCreationFailed.localizedDescription)
+    }
+
+    private func makeFixture() -> Fixture {
+        let suiteName = "BonkCoreTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.set(true, forKey: "keepAwake")
+        let settings = SettingsStore(defaults: defaults)
+        let input = FakeInputInterceptor()
+        let awake = FakeAwakeManager()
+        let overlay = FakeOverlayManager()
+        let authentication = FakeAuthenticationManager()
+        let reactions = FakeReactionController()
+        let character = FakeCharacterPresenter()
+        let controller = GuardController(
+            settings: settings,
+            inputInterceptor: input,
+            awakeManager: awake,
+            overlayManager: overlay,
+            authenticationManager: authentication,
+            reactionController: reactions,
+            characterEngine: character
+        )
+
+        return Fixture(
+            controller: controller,
+            input: input,
+            awake: awake,
+            overlay: overlay,
+            reactions: reactions
+        )
+    }
+}
+
+@MainActor
+private struct Fixture {
+    let controller: GuardController
+    let input: FakeInputInterceptor
+    let awake: FakeAwakeManager
+    let overlay: FakeOverlayManager
+    let reactions: FakeReactionController
+}
+
+private final class FakeInputInterceptor: InputIntercepting {
+    var onSignal: ((InteractionSignal) -> Void)?
+    var onFailure: ((BonkError) -> Void)?
+    private(set) var isRunning = false
+    var startError: Error?
+    private(set) var startCount = 0
+    private(set) var stopCount = 0
+
+    func start(promptForPermission: Bool) throws {
+        startCount += 1
+        if let startError { throw startError }
+        isRunning = true
+    }
+
+    func stop() {
+        stopCount += 1
+        isRunning = false
+    }
+}
+
+private final class FakeAwakeManager: AwakeManaging {
+    private(set) var startCount = 0
+    private(set) var stopCount = 0
+
+    func start() { startCount += 1 }
+    func stop() { stopCount += 1 }
+}
+
+@MainActor
+private final class FakeOverlayManager: OverlayManaging {
+    var onFailure: ((String) -> Void)?
+    private(set) var showCount = 0
+    private(set) var hideCount = 0
+    private(set) var isCapturingInput = false
+
+    func show() { showCount += 1 }
+    func setCapturingInput(_ capture: Bool) { isCapturingInput = capture }
+    func hide() { hideCount += 1 }
+}
+
+private final class FakeAuthenticationManager: OwnerAuthenticating {
+    func authenticateOwner() async throws {}
+}
+
+@MainActor
+private final class FakeReactionController: ReactionControlling {
+    private(set) var beginCount = 0
+    private(set) var endCount = 0
+
+    func beginSession() { beginCount += 1 }
+    func handle(_ signal: InteractionSignal) {}
+    func pointToAuthentication() {}
+    func endSession() { endCount += 1 }
+}
+
+@MainActor
+private final class FakeCharacterPresenter: CharacterPresenting {
+    func celebrate() {}
+}
