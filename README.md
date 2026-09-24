@@ -37,23 +37,25 @@ Mouse movement, clicks, scrolling, typing, and shortcut attempts produce differe
 
 - macOS 13 or newer
 - Swift 5.10 or newer
-- Xcode 15.4 or newer for tests and normal development
+- Xcode 15.4 or newer only for the XCTest suite and contributor verification
 - Accessibility permission to suppress global input
 - Touch ID or another device-owner method supported by macOS
 
 ## Build from source
 
+1. Clone the repository:
+
 ```sh
-git clone https://github.com/Captain-Sangam/bonk.git
-cd bonk
-swift build
-swift test
-swift run BonkChecks
-Scripts/build-app.sh
-open dist/Bonk.app
+git clone https://github.com/Captain-Sangam/bonk.git && cd bonk
 ```
 
-The built app is written to `dist/Bonk.app` and ad-hoc signed. On first launch, grant Bonk access under **System Settings → Privacy & Security → Accessibility**. If macOS retains permission for an earlier build, disable and re-enable the entry.
+2. Build, validate, package, and launch Bonk:
+
+```sh
+make run
+```
+
+The built app is written to `dist/Bonk.app` and ad-hoc signed. `make run` works with the standalone Command Line Tools; contributors can use `make verify` with full Xcode to include the XCTest suite. On first launch, grant Bonk access under **System Settings → Privacy & Security → Accessibility**. If macOS retains permission for an earlier build, disable and re-enable the entry.
 
 Activate Bonk from the menu-bar paw with **Bonk this Mac** or the configured `⇧⌘B` shortcut.
 
@@ -76,3 +78,7 @@ Jev receives only coarse, aggregated interaction metadata. It never receives typ
 Contributions are welcome. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, validation, safety invariants, and asset guidelines. Please report vulnerabilities using [`SECURITY.md`](SECURITY.md).
 
 Bonk is early-stage software. Review the code and understand the Accessibility permission before relying on it.
+
+## License
+
+Bonk is available under the [MIT License](LICENSE).

@@ -15,30 +15,25 @@ You need macOS 13 or newer, Swift 5.10 or newer, and Xcode 15.4 or newer.
 ```sh
 git clone https://github.com/Captain-Sangam/bonk.git
 cd bonk
-swift build
-swift test
-swift run BonkChecks
+make verify
 ```
 
 Build the app bundle with:
 
 ```sh
-Scripts/build-app.sh
-open dist/Bonk.app
+make run
 ```
 
 Grant Accessibility permission only to a locally built binary you trust. macOS may require you to toggle the permission after rebuilding.
+
+Useful targets are `make validate` for build-time checks, `make verify` to include the XCTest suite, `make app` for a signed bundle, `make run` to build and launch, and `make screenshots` to regenerate the checked-in character previews. Full Xcode is required only for `make verify`.
 
 ## Pull requests
 
 Keep pull requests narrow and explain the user-visible behavior. Include tests for logic changes and screenshots for visible changes. Before submitting, run:
 
 ```sh
-swift build -Xswiftc -warnings-as-errors
-swift test
-swift run BonkChecks
-Scripts/build-app.sh
-codesign --verify --deep --strict dist/Bonk.app
+make verify app
 ```
 
 Use clear commit messages and do not commit `.build/`, `dist/`, credentials, developer signing identities, or local Xcode state.
@@ -61,7 +56,5 @@ Keep Bonk original and readable at small sizes. Do not submit copied characters,
 Runtime character changes should update the gallery when relevant:
 
 ```sh
-swift run BonkCharacterGallery \
-  docs/images/reaction-gallery.png \
-  docs/images/guard-mode-preview.png
+make screenshots
 ```

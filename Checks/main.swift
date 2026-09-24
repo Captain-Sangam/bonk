@@ -49,6 +49,10 @@ private struct BonkChecks {
     private static func runChecks() async throws {
         try require(BonkBrandAssets.foxLogo != nil, "Fox logo resource could not be loaded")
         try require(BonkBrandAssets.appIcon != nil, "App icon resource could not be loaded")
+        try require(
+            BonkBrandAssets.menuBarLogo?.size == NSSize(width: 18, height: 18),
+            "Menu-bar logo must use an 18-point intrinsic size"
+        )
 
         var aggregator = InteractionAggregator()
         let start = Date(timeIntervalSince1970: 1_000)

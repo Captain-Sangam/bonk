@@ -4,6 +4,11 @@ import SwiftUI
 public enum BonkBrandAssets {
     public static let foxLogo = loadImage(named: "bonk-fox-logo")
     public static let appIcon = loadImage(named: "bonk-app-icon")
+    public static let menuBarLogo: NSImage? = {
+        guard let image = foxLogo?.copy() as? NSImage else { return nil }
+        image.size = NSSize(width: 18, height: 18)
+        return image
+    }()
 
     private static func loadImage(named name: String) -> NSImage? {
         let packagedURL = Bundle.main.resourceURL?
