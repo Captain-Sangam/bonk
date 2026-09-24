@@ -123,10 +123,19 @@ private struct MenuBarLabel: View {
     }
 
     var body: some View {
-        BonkLogoView(size: 19)
-            .saturation(guardController.isGuarding ? 1 : 0.78)
-            .opacity(guardController.isGuarding ? 1 : 0.88)
-            .accessibilityLabel(guardController.isGuarding ? "Bonk guarding" : "Bonk")
+        Group {
+            if let logo = BonkBrandAssets.menuBarLogo {
+                Image(nsImage: logo)
+            } else {
+                Image(systemName: "pawprint.fill")
+                    .resizable()
+                    .scaledToFit()
+            }
+        }
+        .frame(width: 18, height: 18)
+        .saturation(guardController.isGuarding ? 1 : 0.78)
+        .opacity(guardController.isGuarding ? 1 : 0.88)
+        .accessibilityLabel(guardController.isGuarding ? "Bonk guarding" : "Bonk")
     }
 }
 
