@@ -89,11 +89,14 @@ final class GuardControllerTests: XCTestCase {
     @MainActor
     func testDoubleEscapeGestureStartsAuthentication() async {
         let fixture = makeFixture()
+        let authenticationStarted = expectation(description: "Owner authentication started")
+        fixture.authentication.onAuthenticate = {
+            authenticationStarted.fulfill()
+        }
         fixture.controller.activate()
 
         fixture.input.onAuthenticationGesture?()
-        await Task.yield()
-        try? await Task.sleep(nanoseconds: 500_000_000)
+        await fulfillment(of: [authenticationStarted], timeout: 2.0)
 
         XCTAssertEqual(fixture.authentication.callCount, 1)
     }
@@ -188,9 +191,11 @@ private final class FakeOverlayManager: OverlayManaging {
 
 private final class FakeAuthenticationManager: OwnerAuthenticating {
     private(set) var callCount = 0
+    var onAuthenticate: (() -> Void)?
 
     func authenticateOwner() async throws {
         callCount += 1
+        onAuthenticate?()
     }
 }
 
