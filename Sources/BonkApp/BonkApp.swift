@@ -119,7 +119,7 @@ private struct MenuBarContent: View {
         HStack {
             Text("Character")
             Spacer()
-            Text("Cat")
+            Text("Fox")
                 .foregroundStyle(.secondary)
         }
 

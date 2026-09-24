@@ -12,7 +12,7 @@ Bonk is not a replacement for the macOS Lock Screen. Anything visible before Gua
 - Transparent AppKit overlay on every connected display
 - Native `LocalAuthentication` Touch ID/password flow
 - Sleep prevention while Guard Mode is active
-- Custom vector cat with gaze tracking, animated gait, props, and expressive state-specific poses
+- Original martial-arts fox mascot with gaze tracking, animated gait, props, and expressive state-specific poses
 - Speed- and direction-aware pointer tracking with pounce, stalk, bonk, swat, cling, tumble, and typing reactions
 - Optional TypeSafe AI Jev reaction selection with strict typed validation
 - Immediate deterministic local reactions and complete offline fallback
@@ -20,6 +20,7 @@ Bonk is not a replacement for the macOS Lock Screen. Anything visible before Gua
 - Local settings, Keychain API-key storage, and launch-at-login support
 
 The detailed product and safety requirements live in [spec.md](spec.md).
+The original fox model sheet and reproducible generation briefs live under [`Design/`](Design/).
 
 ## Requirements
 

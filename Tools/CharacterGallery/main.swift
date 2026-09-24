@@ -10,7 +10,7 @@ private struct BonkCharacterGallery {
             fileURLWithPath: CommandLine.arguments.dropFirst().first
                 ?? "/private/tmp/bonk-character-gallery.png"
         )
-        let size = CGSize(width: 900, height: 960)
+        let size = CGSize(width: 900, height: 850)
         let view = CharacterGalleryView()
             .frame(width: size.width, height: size.height)
             .background(Color(red: 0.055, green: 0.06, blue: 0.09))
@@ -57,7 +57,7 @@ private struct CharacterGalleryView: View {
                 Text("BONK CHARACTER SYSTEM")
                     .font(.system(size: 26, weight: .black, design: .rounded))
                     .foregroundStyle(Color.white)
-                Text("Vector mascot • gaze tracking • state-specific motion and props")
+                Text("Original fox mascot • local tracking • state-specific motion and props")
                     .font(.system(size: 14, weight: .medium, design: .rounded))
                     .foregroundStyle(Color.white.opacity(0.62))
             }
@@ -84,6 +84,8 @@ private struct CharacterGalleryView: View {
                                 reactionStartedAt: Date.timeIntervalSinceReferenceDate - previewElapsed(for: sample.1)
                             )
                         )
+                        .scaleEffect(0.82)
+                        .frame(height: 120)
                         Text(sample.2)
                             .font(.system(size: 12, weight: .bold, design: .rounded))
                             .foregroundStyle(Color.white)
@@ -108,8 +110,7 @@ private struct CharacterGalleryView: View {
     private func previewElapsed(for state: CharacterState) -> TimeInterval {
         switch state {
         case .bonk, .swat: return 0.2
-        case .pounce: return 0.28
-        case .tumble: return 0.42
+        case .pounce, .tumble: return 0
         default: return 0.1
         }
     }

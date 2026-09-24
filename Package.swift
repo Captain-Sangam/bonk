@@ -14,7 +14,10 @@ let package = Package(
     targets: [
         .target(
             name: "BonkCore",
-            path: "Sources/BonkCore"
+            path: "Sources/BonkCore",
+            resources: [
+                .process("Resources")
+            ]
         ),
         .executableTarget(
             name: "BonkApp",

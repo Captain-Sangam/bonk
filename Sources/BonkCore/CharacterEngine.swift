@@ -12,6 +12,7 @@ public enum CharacterState: String, Sendable {
     case pounce
     case point
     case bonk
+    case repeatBonk
     case swat
     case annoyed
     case coverEars
@@ -224,7 +225,8 @@ public final class CharacterEngine: ObservableObject, CharacterPresenting {
         case .followCursor: return .walk
         case .stalkCursor: return .stalk
         case .pounce: return .pounce
-        case .bonk, .repeatBonk: return .bonk
+        case .bonk: return .bonk
+        case .repeatBonk: return .repeatBonk
         case .swat: return .swat
         case .annoyed: return .annoyed
         case .coverEars: return .coverEars

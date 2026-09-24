@@ -186,7 +186,7 @@ Example menu:
 Bonk this Mac        ⇧⌘B
 ───────────────────────
 Keep Awake           ✓
-Character          Cat >
+Character          Fox >
 ───────────────────────
 Settings...
 About Bonk
@@ -381,11 +381,11 @@ For v1, ship one excellent character instead of several mediocre ones.
 
 Recommended first character:
 
-Cat
+Fox
 
-The cat lives in the menu bar while Bonk is idle.
+The fox lives in the menu bar while Bonk is idle. Its production design is an original one-tailed orange-and-cream fox with oversized ears, a deep-indigo wrap vest, coral sash, teal wrist guards and a compact red bonk mallet. The silhouette may draw on energetic cel-animation and martial-arts visual language, but must not reproduce third-party characters, costumes, logos or insignia.
 
-When Bonk activates, the cat becomes a guard.
+When Bonk activates, the fox becomes a guard.
 
 Possible visual change:
 
@@ -733,7 +733,7 @@ Character
 
 Character:
 
-Cat
+Fox
 
 Future versions can add additional characters.
 
