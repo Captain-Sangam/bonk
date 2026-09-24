@@ -52,12 +52,12 @@ public final class GuardController: ObservableObject {
         guard status == .idle else { return }
         lastError = nil
         reactionController.beginSession()
-        overlayManager.show()
-        if settings.keepAwake {
-            awakeManager.start()
-        }
 
         do {
+            try overlayManager.show()
+            if settings.keepAwake {
+                awakeManager.start()
+            }
             try inputInterceptor.start(promptForPermission: true)
             status = .armed
         } catch {

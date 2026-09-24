@@ -18,7 +18,7 @@ public protocol AwakeManaging: AnyObject {
 public protocol OverlayManaging: AnyObject {
     var onFailure: ((String) -> Void)? { get set }
 
-    func show()
+    func show() throws
     func setCapturingInput(_ capture: Bool)
     func hide()
 }

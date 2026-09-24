@@ -130,6 +130,7 @@ public enum BonkError: LocalizedError, Equatable {
     case accessibilityPermissionMissing
     case eventTapCreationFailed
     case eventTapDisabled
+    case overlayUnavailable(String)
     case authenticationUnavailable(String)
     case authenticationFailed(String)
     case jevUnavailable
@@ -144,6 +145,8 @@ public enum BonkError: LocalizedError, Equatable {
             return "Bonk could not start its input guard."
         case .eventTapDisabled:
             return "macOS disabled Bonk’s input guard, so Guard Mode was stopped safely."
+        case let .overlayUnavailable(reason):
+            return "Bonk could not protect every display: \(reason)"
         case let .authenticationUnavailable(reason):
             return "Owner authentication is unavailable: \(reason)"
         case let .authenticationFailed(reason):

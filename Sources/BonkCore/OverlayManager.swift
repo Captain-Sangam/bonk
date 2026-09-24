@@ -16,8 +16,11 @@ public final class OverlayManager: OverlayManaging {
         self.characterEngine = characterEngine
     }
 
-    public func show() {
+    public func show() throws {
         guard !isActive else { return }
+        guard !NSScreen.screens.isEmpty else {
+            throw BonkError.overlayUnavailable("No connected display was available.")
+        }
         isActive = true
         displayObserver = NotificationCenter.default
             .publisher(for: NSApplication.didChangeScreenParametersNotification)
@@ -45,7 +48,7 @@ public final class OverlayManager: OverlayManaging {
 
         let screens = NSScreen.screens
         guard !screens.isEmpty else {
-            onFailure?("No displays are available for Guard Mode.")
+            onFailure?(BonkError.overlayUnavailable("The display configuration became empty.").localizedDescription)
             return
         }
 

@@ -55,6 +55,21 @@ final class GuardControllerTests: XCTestCase {
         XCTAssertEqual(fixture.controller.lastError, BonkError.eventTapCreationFailed.localizedDescription)
     }
 
+    func testFailedOverlayStartupNeverStartsInputAndRollsBackSession() {
+        let fixture = makeFixture()
+        fixture.overlay.showError = BonkError.overlayUnavailable("No display")
+
+        fixture.controller.activate()
+
+        XCTAssertEqual(fixture.controller.status, .idle)
+        XCTAssertEqual(fixture.input.startCount, 0)
+        XCTAssertFalse(fixture.input.isRunning)
+        XCTAssertEqual(fixture.awake.startCount, 0)
+        XCTAssertEqual(fixture.overlay.hideCount, 1)
+        XCTAssertEqual(fixture.reactions.endCount, 1)
+        XCTAssertNotNil(fixture.controller.lastError)
+    }
+
     private func makeFixture() -> Fixture {
         let suiteName = "BonkCoreTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -129,8 +144,12 @@ private final class FakeOverlayManager: OverlayManaging {
     private(set) var showCount = 0
     private(set) var hideCount = 0
     private(set) var isCapturingInput = false
+    var showError: Error?
 
-    func show() { showCount += 1 }
+    func show() throws {
+        showCount += 1
+        if let showError { throw showError }
+    }
     func setCapturingInput(_ capture: Bool) { isCapturingInput = capture }
     func hide() { hideCount += 1 }
 }
