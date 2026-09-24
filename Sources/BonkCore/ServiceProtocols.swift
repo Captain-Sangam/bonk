@@ -2,6 +2,7 @@ import Foundation
 
 public protocol InputIntercepting: AnyObject {
     var onSignal: ((InteractionSignal) -> Void)? { get set }
+    var onAuthenticationGesture: (() -> Void)? { get set }
     var onFailure: ((BonkError) -> Void)? { get set }
     var isRunning: Bool { get }
 

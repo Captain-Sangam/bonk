@@ -14,7 +14,10 @@ let package = Package(
     targets: [
         .target(
             name: "BonkCore",
-            path: "Sources/BonkCore"
+            path: "Sources/BonkCore",
+            resources: [
+                .process("Resources")
+            ]
         ),
         .executableTarget(
             name: "BonkApp",
@@ -25,6 +28,15 @@ let package = Package(
             name: "BonkChecks",
             dependencies: ["BonkCore"],
             path: "Checks"
+        ),
+        .executableTarget(
+            name: "BonkCharacterGallery",
+            dependencies: ["BonkCore"],
+            path: "Tools/CharacterGallery"
+        ),
+        .executableTarget(
+            name: "BonkIconBuilder",
+            path: "Tools/IconBuilder"
         ),
         .testTarget(
             name: "BonkCoreTests",

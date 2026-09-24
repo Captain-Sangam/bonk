@@ -27,6 +27,16 @@ fi
 /bin/mkdir -p "$contents_path/MacOS" "$contents_path/Resources"
 /bin/cp "$binary_directory/Bonk" "$contents_path/MacOS/Bonk"
 /bin/cp "$repository_root/Packaging/Info.plist" "$contents_path/Info.plist"
+
+icon_source="$repository_root/Sources/BonkCore/Resources/bonk-app-icon.png"
+"$binary_directory/BonkIconBuilder" "$icon_source" "$contents_path/Resources/AppIcon.icns"
+
+resource_bundle="$binary_directory/Bonk_BonkCore.bundle"
+if [[ ! -d "$resource_bundle" ]]; then
+    echo "Missing BonkCore resource bundle at $resource_bundle" >&2
+    exit 1
+fi
+/bin/cp -R "$resource_bundle" "$contents_path/Resources/Bonk_BonkCore.bundle"
 /usr/bin/plutil -lint "$contents_path/Info.plist"
 /usr/bin/codesign --force --deep --sign - "$application_path"
 

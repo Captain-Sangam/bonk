@@ -15,8 +15,9 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(spacing: 24) {
-            Text("🐾")
-                .font(.system(size: 58))
+            BonkLogoView(size: 92)
+                .shadow(color: .black.opacity(0.16), radius: 8, y: 5)
+                .accessibilityHidden(true)
 
             Group {
                 switch page {

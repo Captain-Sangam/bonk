@@ -11,6 +11,8 @@ public final class ReactionController: ReactionControlling {
     private var sessionID = UUID()
     private var eventSequence = 0
     private var pendingTask: Task<Void, Never>?
+    private var lastPresentedAt = Date.distantPast
+    private var lastPresentedIntent: ReactionIntent?
 
     public init(
         characterEngine: CharacterEngine,
@@ -24,6 +26,8 @@ public final class ReactionController: ReactionControlling {
         pendingTask?.cancel()
         sessionID = UUID()
         eventSequence = 0
+        lastPresentedAt = .distantPast
+        lastPresentedIntent = nil
         aggregator.reset()
         characterEngine.reset()
     }
@@ -32,6 +36,7 @@ public final class ReactionController: ReactionControlling {
         eventSequence += 1
         let currentSequence = eventSequence
         let currentSession = sessionID
+        characterEngine.observe(signal)
         let context = characterEngine.context(for: signal.globalLocation)
         let snapshot = aggregator.record(
             signal,
@@ -40,7 +45,15 @@ public final class ReactionController: ReactionControlling {
             cursorRegion: context.region
         )
 
-        characterEngine.apply(localProvider.immediateReaction(for: snapshot), near: signal.globalLocation)
+        let localPlan = localProvider.immediateReaction(for: snapshot)
+        let isNewIntent = localPlan.intent != lastPresentedIntent
+        let presentationInterval = signal.timestamp.timeIntervalSince(lastPresentedAt)
+        let shouldPresent = signal.kind != .mouseMovement || isNewIntent || presentationInterval >= 0.65
+
+        guard shouldPresent else { return }
+        lastPresentedAt = signal.timestamp
+        lastPresentedIntent = localPlan.intent
+        characterEngine.apply(localPlan, near: signal.globalLocation)
 
         let currentConfiguration = configuration()
         guard currentConfiguration.enabled, let apiKey = currentConfiguration.apiKey else { return }

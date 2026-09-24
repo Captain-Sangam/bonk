@@ -24,18 +24,39 @@ public struct InteractionSignal: Sendable {
     public let timestamp: Date
     public let globalLocation: CGPoint?
     public let magnitude: Double
+    public let deltaX: Double
+    public let deltaY: Double
 
     public init(
         kind: InteractionKind,
         timestamp: Date = Date(),
         globalLocation: CGPoint? = nil,
-        magnitude: Double = 1
+        magnitude: Double = 1,
+        deltaX: Double = 0,
+        deltaY: Double = 0
     ) {
         self.kind = kind
         self.timestamp = timestamp
         self.globalLocation = globalLocation
         self.magnitude = magnitude
+        self.deltaX = deltaX
+        self.deltaY = deltaY
     }
+}
+
+public enum MotionEnergy: String, Codable, Sendable {
+    case still
+    case gentle
+    case quick
+    case frantic
+}
+
+public enum CoarseDirection: String, Codable, Sendable {
+    case stationary
+    case left
+    case right
+    case up
+    case down
 }
 
 public enum InteractionRate: String, Codable, Sendable {
@@ -67,13 +88,18 @@ public enum CoarseCursorRegion: String, Codable, Sendable {
 public enum ReactionIntent: String, Codable, CaseIterable, Hashable, Sendable {
     case notice
     case followCursor
+    case stalkCursor
+    case pounce
     case bonk
+    case swat
     case repeatBonk
     case annoyed
+    case coverEars
     case angry
     case blockShortcut
+    case cling
     case tumble
-    case pointToTouchID
+    case promptDoubleEscape
 }
 
 public struct ReactionSnapshot: Codable, Equatable, Sendable {
@@ -85,6 +111,8 @@ public struct ReactionSnapshot: Codable, Equatable, Sendable {
     public let currentCharacterState: String
     public let displayIndex: Int?
     public let cursorRegion: CoarseCursorRegion
+    public let motionEnergy: MotionEnergy
+    public let coarseDirection: CoarseDirection
 
     public init(
         interaction: InteractionKind,
@@ -94,7 +122,9 @@ public struct ReactionSnapshot: Codable, Equatable, Sendable {
         escalationLevel: Int,
         currentCharacterState: String,
         displayIndex: Int?,
-        cursorRegion: CoarseCursorRegion
+        cursorRegion: CoarseCursorRegion,
+        motionEnergy: MotionEnergy = .still,
+        coarseDirection: CoarseDirection = .stationary
     ) {
         self.interaction = interaction
         self.recentEventCounts = recentEventCounts
@@ -104,6 +134,8 @@ public struct ReactionSnapshot: Codable, Equatable, Sendable {
         self.currentCharacterState = currentCharacterState
         self.displayIndex = displayIndex
         self.cursorRegion = cursorRegion
+        self.motionEnergy = motionEnergy
+        self.coarseDirection = coarseDirection
     }
 }
 

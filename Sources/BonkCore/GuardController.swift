@@ -18,7 +18,6 @@ public final class GuardController: ObservableObject {
 
     private var authenticationTask: Task<Void, Never>?
     private var returnToArmedTask: Task<Void, Never>?
-    private var authenticationScheduled = false
 
     public init(
         settings: SettingsStore,
@@ -39,6 +38,9 @@ public final class GuardController: ObservableObject {
 
         inputInterceptor.onSignal = { [weak self] signal in
             Task { @MainActor in self?.handle(signal) }
+        }
+        inputInterceptor.onAuthenticationGesture = { [weak self] in
+            Task { @MainActor in self?.beginOwnerAuthentication() }
         }
         inputInterceptor.onFailure = { [weak self] error in
             Task { @MainActor in self?.failOpen(error.localizedDescription) }
@@ -69,11 +71,6 @@ public final class GuardController: ObservableObject {
         }
     }
 
-    public func requestOwnerAuthentication() {
-        guard status == .armed || status == .reacting else { return }
-        scheduleAuthentication(afterNanoseconds: 0)
-    }
-
     public func clearError() {
         lastError = nil
     }
@@ -96,24 +93,13 @@ public final class GuardController: ObservableObject {
             guard let self, self.status == .reacting else { return }
             self.status = .armed
         }
-
-        if signal.kind != .mouseMovement {
-            scheduleAuthentication(afterNanoseconds: 850_000_000)
-        }
     }
 
-    private func scheduleAuthentication(afterNanoseconds delay: UInt64) {
-        guard !authenticationScheduled else { return }
-        authenticationScheduled = true
+    private func beginOwnerAuthentication() {
+        guard status == .armed || status == .reacting, authenticationTask == nil else { return }
         authenticationTask = Task { [weak self] in
             guard let self else { return }
             do {
-                if delay > 0 {
-                    try await Task.sleep(nanoseconds: delay)
-                }
-                try Task.checkCancellation()
-                guard self.status == .armed || self.status == .reacting else { return }
-
                 self.reactionController.pointToAuthentication()
                 try await Task.sleep(nanoseconds: 450_000_000)
                 try Task.checkCancellation()
@@ -150,7 +136,6 @@ public final class GuardController: ObservableObject {
         do {
             try inputInterceptor.start(promptForPermission: false)
             status = .armed
-            authenticationScheduled = false
             authenticationTask = nil
         } catch {
             failOpen(error.localizedDescription)
@@ -170,7 +155,7 @@ public final class GuardController: ObservableObject {
         awakeManager.stop()
         overlayManager.hide()
         reactionController.endSession()
-        authenticationScheduled = false
+        authenticationTask = nil
         returnToArmedTask = nil
     }
 }

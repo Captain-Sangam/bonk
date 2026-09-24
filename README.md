@@ -1,60 +1,78 @@
-# Bonk
+<p align="center">
+  <img src="Sources/BonkCore/Resources/bonk-app-icon.png" width="144" alt="Bonk fox app icon">
+</p>
 
-Bonk is a playful native macOS menu-bar input guard. It keeps the Mac awake and the desktop visible, intercepts keyboard and pointing-device input, reacts with a tiny character, and restores control after macOS device-owner authentication.
+<h1 align="center">Bonk</h1>
 
-Bonk is not a replacement for the macOS Lock Screen. Anything visible before Guard Mode remains visible.
+<p align="center"><strong>A playful input guard for macOS.</strong></p>
 
-## Current MVP
+Keep your desktop visible and your Mac awake while a tiny fox blocks unwanted keyboard, mouse, and trackpad input.
 
-- Menu-bar activation and configurable `⇧⌘B` shortcut
-- Accessibility-backed `CGEventTap` input interception
-- Fail-open cleanup if interception, overlays, permissions, or authentication fail
-- Transparent AppKit overlay on every connected display
-- Native `LocalAuthentication` Touch ID/password flow
-- Sleep prevention while Guard Mode is active
-- Cat reactions for pointer, click, keyboard, shortcut, and scroll activity
-- Optional TypeSafe AI Jev reaction selection with strict typed validation
-- Immediate deterministic local reactions and complete offline fallback
-- First-launch privacy and permission onboarding
-- Local settings, Keychain API-key storage, and launch-at-login support
+![Bonk guarding a visible desktop](docs/images/guard-mode-preview.png)
 
-The detailed product and safety requirements live in [spec.md](spec.md).
+Bonk is useful for dashboards, demos, long-running tasks, keyboard cleaning, curious pets, and any moment when the screen should stay on but hands should stay off.
+
+> [!IMPORTANT]
+> Bonk is not a replacement for the macOS Lock Screen. Anything already visible remains visible.
+
+## Highlights
+
+- Native SwiftUI and AppKit menu-bar app with no game engine or web runtime
+- Accessibility-backed global input suppression with fail-open cleanup
+- Transparent protection across every connected display
+- Smooth local cursor tracking and expressive, state-specific fox reactions
+- Double Escape as the only guarded-input path to macOS owner authentication
+- Optional TypeSafe AI Jev reaction selection with strict validation
+- Complete deterministic offline reaction fallback
+- Keychain storage for the optional Jev API key
+- Reproducible character assets and screenshot tooling
+
+## Character reactions
+
+![Bonk's sixteen reaction states](docs/images/reaction-gallery.png)
+
+Mouse movement, clicks, scrolling, typing, and shortcut attempts produce different poses and motion. They never open Touch ID. To unlock, press `Esc` twice within 650 milliseconds; holding the key does not count.
 
 ## Requirements
 
 - macOS 13 or newer
 - Swift 5.10 or newer
-- Xcode 15.4 or newer for the XCTest suite and normal app development
+- Xcode 15.4 or newer for tests and normal development
 - Accessibility permission to suppress global input
-- Touch ID or another device-owner authentication method supported by macOS
+- Touch ID or another device-owner method supported by macOS
 
-## Build and test
+## Build from source
 
 ```sh
+git clone https://github.com/Captain-Sangam/bonk.git
+cd bonk
 swift build
 swift test
 swift run BonkChecks
-```
-
-Build an ad-hoc signed `.app` bundle:
-
-```sh
 Scripts/build-app.sh
 open dist/Bonk.app
 ```
 
-The first launch asks for Accessibility access. If macOS does not refresh the permission automatically, disable and re-enable Bonk under **System Settings → Privacy & Security → Accessibility**.
+The built app is written to `dist/Bonk.app` and ad-hoc signed. On first launch, grant Bonk access under **System Settings → Privacy & Security → Accessibility**. If macOS retains permission for an earlier build, disable and re-enable the entry.
 
-## Jev reactions
+Activate Bonk from the menu-bar paw with **Bonk this Mac** or the configured `⇧⌘B` shortcut.
 
-AI reactions are opt-in. Add a TypeSafe API key in Bonk Settings or set `TYPESAFE_API_KEY` for a development launch. The key is stored in the macOS Keychain when entered in Settings and is sent only as an authorization header.
+## Optional Jev reactions
 
-Jev receives a compact JSON snapshot containing categories and aggregates such as `rapidClick`, recent counts, an intensity bucket, and a coarse cursor region. Bonk never sends typed characters, key codes, screen contents, window titles, clipboard contents, filenames, URLs, or precise cursor history.
+AI reactions are off by default. Add a TypeSafe API key in Bonk Settings or set `TYPESAFE_API_KEY` for a development launch. Settings confirms the saved credential with a masked suffix; the complete value remains in the macOS Keychain.
 
-Jev is outside the safety-critical path. Input interception, authentication, cleanup, and offline reactions do not depend on the network or model.
+Jev receives only coarse, aggregated interaction metadata. It never receives typed content, raw key codes, exact pointer coordinates, screen contents, application context, clipboard data, filenames, or URLs. Jev can choose presentation only—it cannot control input interception, authentication, or cleanup.
 
-## Architecture
+## Documentation
 
-`GuardController` owns the guarded-session lifecycle. Its cleanup path always stops the event tap, releases the power assertion, removes overlays, and cancels reaction work. `ReactionController` shows a local reaction immediately, coalesces bursts, and optionally replaces the presentation with a validated Jev choice. Authentication temporarily stops the event tap so the macOS password fallback can receive input while the overlay continues to cover ordinary applications.
+- [Architecture](docs/architecture.md)
+- [Interaction design](docs/interaction-design.md)
+- [Reaction engine](docs/reaction-engine.md)
+- [Privacy and security](docs/privacy-and-security.md)
+- [Character design prompts](docs/design/character-prompts.md)
 
-The repository is intentionally a Swift Package so it can build from the command line and be opened directly in Xcode.
+## Contributing
+
+Contributions are welcome. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, validation, safety invariants, and asset guidelines. Please report vulnerabilities using [`SECURITY.md`](SECURITY.md).
+
+Bonk is early-stage software. Review the code and understand the Accessibility permission before relying on it.

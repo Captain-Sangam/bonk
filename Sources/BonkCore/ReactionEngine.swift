@@ -64,8 +64,41 @@ public struct InteractionAggregator: Sendable {
             escalationLevel: escalation,
             currentCharacterState: characterState,
             displayIndex: displayIndex,
-            cursorRegion: cursorRegion
+            cursorRegion: cursorRegion,
+            motionEnergy: Self.motionEnergy(for: signal),
+            coarseDirection: Self.coarseDirection(for: signal)
         )
+    }
+
+    private static func motionEnergy(for signal: InteractionSignal) -> MotionEnergy {
+        switch signal.kind {
+        case .mouseMovement:
+            switch signal.magnitude {
+            case ..<40: return .still
+            case ..<450: return .gentle
+            case ..<1_100: return .quick
+            default: return .frantic
+            }
+        case .scroll:
+            switch signal.magnitude {
+            case ..<1: return .still
+            case ..<5: return .gentle
+            case ..<18: return .quick
+            default: return .frantic
+            }
+        default:
+            return .still
+        }
+    }
+
+    private static func coarseDirection(for signal: InteractionSignal) -> CoarseDirection {
+        guard abs(signal.deltaX) >= 0.5 || abs(signal.deltaY) >= 0.5 else {
+            return .stationary
+        }
+        if abs(signal.deltaX) > abs(signal.deltaY) {
+            return signal.deltaX < 0 ? .left : .right
+        }
+        return signal.deltaY < 0 ? .down : .up
     }
 }
 
@@ -91,22 +124,29 @@ public struct LocalReactionProvider: ReactionProvider {
     }
 
     private func intent(for snapshot: ReactionSnapshot) -> ReactionIntent {
-        if snapshot.escalationLevel >= 5 {
-            return .pointToTouchID
+        if snapshot.escalationLevel >= 5, snapshot.sessionDuration == .long {
+            return .promptDoubleEscape
         }
 
         switch snapshot.interaction {
         case .mouseMovement:
-            return snapshot.escalationLevel <= 1 ? .notice : .followCursor
+            let movementCount = snapshot.recentEventCounts[InteractionKind.mouseMovement.rawValue, default: 0]
+            if movementCount <= 1 { return .notice }
+            if snapshot.motionEnergy == .frantic { return .pounce }
+            if movementCount >= 5 { return .stalkCursor }
+            return .followCursor
         case .click:
             let clickCount = snapshot.recentEventCounts[InteractionKind.click.rawValue, default: 0]
+            if clickCount == 2 { return .swat }
             return clickCount >= 3 ? .repeatBonk : .bonk
         case .rapidClick:
             return snapshot.escalationLevel >= 4 ? .angry : .repeatBonk
         case .keyboardActivity:
-            return snapshot.escalationLevel >= 4 ? .angry : .annoyed
+            let keyCount = snapshot.recentEventCounts[InteractionKind.keyboardActivity.rawValue, default: 0]
+            if snapshot.escalationLevel >= 4 { return .angry }
+            return keyCount >= 2 ? .coverEars : .annoyed
         case .scroll:
-            return .tumble
+            return snapshot.motionEnergy == .quick || snapshot.motionEnergy == .frantic ? .tumble : .cling
         case .shortcutAttempt:
             return .blockShortcut
         }
@@ -186,17 +226,22 @@ private struct JevRequest: Encodable {
     struct Questions: Encodable {
         let reaction = ChoiceQuestion(
             type: "choice",
-            instructions: "Choose the single best playful character reaction for the current guarded Mac interaction. Prefer variety, respect escalation, and use pointToTouchID for persistent attempts.",
+            instructions: "Choose the single best playful character reaction for the current guarded Mac interaction. Use motion energy and coarse direction to vary pointer and scroll reactions, respect escalation, and reserve promptDoubleEscape for persistent attempts.",
             criteria: [
                 "notice": "Wake and acknowledge gentle first movement.",
                 "followCursor": "Track continuing pointer movement.",
+                "stalkCursor": "Creep after sustained, deliberate pointer movement.",
+                "pounce": "Leap at a fast or frantic pointer movement.",
                 "bonk": "Respond to a click with the primary bonk gag.",
+                "swat": "Bat the pointer away after another click.",
                 "repeatBonk": "Respond to repeated or rapid clicking.",
                 "annoyed": "Show mild frustration at continued keyboard activity.",
+                "coverEars": "Cover both ears during repeated typing.",
                 "angry": "Show dramatic frustration at persistent high-rate activity.",
                 "blockShortcut": "Hold up a stop sign for a shortcut attempt.",
+                "cling": "Brace and cling during a small scroll.",
                 "tumble": "Get pushed or tumble in response to scrolling.",
-                "pointToTouchID": "Direct a persistent user to owner authentication."
+                "promptDoubleEscape": "Remind a persistent user that only a deliberate double-Escape gesture starts owner authentication."
             ]
         )
 
