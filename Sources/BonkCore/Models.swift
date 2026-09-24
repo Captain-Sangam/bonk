@@ -99,7 +99,7 @@ public enum ReactionIntent: String, Codable, CaseIterable, Hashable, Sendable {
     case blockShortcut
     case cling
     case tumble
-    case pointToTouchID
+    case promptDoubleEscape
 }
 
 public struct ReactionSnapshot: Codable, Equatable, Sendable {

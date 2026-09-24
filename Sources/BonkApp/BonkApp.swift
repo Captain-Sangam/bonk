@@ -107,10 +107,14 @@ private struct MenuBarContent: View {
     }
 
     var body: some View {
-        Button(guardController.isGuarding ? "Authenticate to Unbonk" : "Bonk this Mac") {
-            model.toggleGuard()
+        if guardController.isGuarding {
+            Label("Press Esc twice to Unbonk", systemImage: "escape")
+        } else {
+            Button("Bonk this Mac") {
+                model.toggleGuard()
+            }
+            .keyboardShortcut(shortcutEquivalent, modifiers: [.command, .shift])
         }
-        .keyboardShortcut(shortcutEquivalent, modifiers: [.command, .shift])
 
         Divider()
 

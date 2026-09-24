@@ -74,6 +74,31 @@ final class GuardControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testOrdinaryInputNeverStartsAuthentication() async {
+        let fixture = makeFixture()
+        fixture.controller.activate()
+
+        fixture.input.onSignal?(InteractionSignal(kind: .keyboardActivity))
+        fixture.input.onSignal?(InteractionSignal(kind: .click))
+        await Task.yield()
+
+        XCTAssertEqual(fixture.controller.status, .reacting)
+        XCTAssertEqual(fixture.authentication.callCount, 0)
+    }
+
+    @MainActor
+    func testDoubleEscapeGestureStartsAuthentication() async {
+        let fixture = makeFixture()
+        fixture.controller.activate()
+
+        fixture.input.onAuthenticationGesture?()
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 500_000_000)
+
+        XCTAssertEqual(fixture.authentication.callCount, 1)
+    }
+
+    @MainActor
     private func makeFixture() -> Fixture {
         let suiteName = "BonkCoreTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -100,7 +125,8 @@ final class GuardControllerTests: XCTestCase {
             input: input,
             awake: awake,
             overlay: overlay,
-            reactions: reactions
+            reactions: reactions,
+            authentication: authentication
         )
     }
 }
@@ -112,10 +138,12 @@ private struct Fixture {
     let awake: FakeAwakeManager
     let overlay: FakeOverlayManager
     let reactions: FakeReactionController
+    let authentication: FakeAuthenticationManager
 }
 
 private final class FakeInputInterceptor: InputIntercepting {
     var onSignal: ((InteractionSignal) -> Void)?
+    var onAuthenticationGesture: (() -> Void)?
     var onFailure: ((BonkError) -> Void)?
     private(set) var isRunning = false
     var startError: Error?
@@ -159,7 +187,11 @@ private final class FakeOverlayManager: OverlayManaging {
 }
 
 private final class FakeAuthenticationManager: OwnerAuthenticating {
-    func authenticateOwner() async throws {}
+    private(set) var callCount = 0
+
+    func authenticateOwner() async throws {
+        callCount += 1
+    }
 }
 
 @MainActor

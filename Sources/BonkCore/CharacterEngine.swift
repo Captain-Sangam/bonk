@@ -35,6 +35,7 @@ public struct NormalizedPoint: Equatable, Sendable {
     }
 
     public static let resting = NormalizedPoint(x: 0.82, y: 0.16)
+    public static let unlockHint = NormalizedPoint(x: 0.5, y: 0.2)
     public static let touchID = NormalizedPoint(x: 0.9, y: 0.9)
 }
 
@@ -189,8 +190,8 @@ public final class CharacterEngine: ObservableObject, CharacterPresenting {
             }
         }
 
-        if plan.intent == .pointToTouchID {
-            next.position = .touchID
+        if plan.intent == .promptDoubleEscape {
+            next.position = .unlockHint
             next.facing = 1
         }
 
@@ -200,7 +201,7 @@ public final class CharacterEngine: ObservableObject, CharacterPresenting {
 
     public func pointToAuthentication() {
         presentation.state = .point
-        presentation.message = "Owner? Use the finger."
+        presentation.message = "Double Esc captured. Use Touch ID."
         presentation.position = .touchID
         presentation.facing = 1
         presentation.intensity = 0.5
@@ -234,7 +235,7 @@ public final class CharacterEngine: ObservableObject, CharacterPresenting {
         case .blockShortcut: return .block
         case .cling: return .cling
         case .tumble: return .tumble
-        case .pointToTouchID: return .point
+        case .promptDoubleEscape: return .point
         }
     }
 
@@ -255,7 +256,7 @@ public final class CharacterEngine: ObservableObject, CharacterPresenting {
         case .blockShortcut: return pick(["shortcut denied.", "absolutely not.", "nice try, power user."])
         case .cling: return pick(["hold still!", "who moved the floor?", "claws deployed."])
         case .tumble: return pick(["wheee—NO.", "gravity filed a complaint.", "I meant to do that."])
-        case .pointToTouchID: return "Use the finger."
+        case .promptDoubleEscape: return "Double-tap Esc to unlock."
         }
     }
 

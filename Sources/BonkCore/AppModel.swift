@@ -52,11 +52,8 @@ public final class AppModel: ObservableObject {
     }
 
     public func toggleGuard() {
-        if guardController.isGuarding {
-            guardController.requestOwnerAuthentication()
-        } else {
-            guardController.activate()
-        }
+        guard !guardController.isGuarding else { return }
+        guardController.activate()
     }
 
     public func shutdown() {

@@ -10,7 +10,7 @@ Bonk is not a replacement for the macOS Lock Screen. Anything visible before Gua
 - Accessibility-backed `CGEventTap` input interception
 - Fail-open cleanup if interception, overlays, permissions, or authentication fail
 - Transparent AppKit overlay on every connected display
-- Native `LocalAuthentication` Touch ID/password flow
+- Deliberate double-Escape unlock gesture followed by native `LocalAuthentication`
 - Sleep prevention while Guard Mode is active
 - Original martial-arts fox mascot with gaze tracking, animated gait, props, and expressive state-specific poses
 - Speed- and direction-aware pointer tracking with pounce, stalk, bonk, swat, cling, tumble, and typing reactions
@@ -48,6 +48,8 @@ open dist/Bonk.app
 
 The first launch asks for Accessibility access. If macOS does not refresh the permission automatically, disable and re-enable Bonk under **System Settings → Privacy & Security → Accessibility**.
 
+While Bonk is guarding, mouse movement, clicks, scrolling, and ordinary typing only drive character reactions. Press `Esc` twice within 650 milliseconds to request Touch ID or the macOS device-owner fallback; holding Escape does not count.
+
 ## Jev reactions
 
 AI reactions are opt-in. Add a TypeSafe API key in Bonk Settings or set `TYPESAFE_API_KEY` for a development launch. The key is stored in the macOS Keychain when entered in Settings and is sent only as an authorization header.
@@ -58,6 +60,6 @@ Jev is outside the safety-critical path. Input interception, authentication, cle
 
 ## Architecture
 
-`GuardController` owns the guarded-session lifecycle. Its cleanup path always stops the event tap, releases the power assertion, removes overlays, and cancels reaction work. `ReactionController` shows a local reaction immediately, coalesces bursts, and optionally replaces the presentation with a validated Jev choice. Authentication temporarily stops the event tap so the macOS password fallback can receive input while the overlay continues to cover ordinary applications.
+`GuardController` owns the guarded-session lifecycle. Its cleanup path always stops the event tap, releases the power assertion, removes overlays, and cancels reaction work. `ReactionController` shows a local reaction immediately, coalesces bursts, and optionally replaces the presentation with a validated Jev choice. A local double-Escape detector is the only guarded-input path into authentication. Authentication temporarily stops the event tap so the macOS password fallback can receive input while the overlay continues to cover ordinary applications.
 
 The repository is intentionally a Swift Package so it can build from the command line and be opened directly in Xcode.

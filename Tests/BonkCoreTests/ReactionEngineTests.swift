@@ -174,7 +174,7 @@ final class ReactionEngineTests: XCTestCase {
         XCTAssertFalse(encoded.contains("-84"))
     }
 
-    func testPersistentActivityAlwaysPointsToAuthentication() {
+    func testPersistentActivityPromptsForDoubleEscape() {
         let snapshot = ReactionSnapshot(
             interaction: .rapidClick,
             recentEventCounts: ["rapidClick": 12],
@@ -187,7 +187,7 @@ final class ReactionEngineTests: XCTestCase {
         )
 
         let plan = LocalReactionProvider().immediateReaction(for: snapshot)
-        XCTAssertEqual(plan.intent, .pointToTouchID)
+        XCTAssertEqual(plan.intent, .promptDoubleEscape)
         XCTAssertEqual(plan.intensity, 1)
     }
 

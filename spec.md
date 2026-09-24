@@ -21,7 +21,7 @@ When Bonk is enabled:
 * Trackpad and mouse interactions are blocked.
 * Attempted interaction triggers a playful animated character.
 * The character reacts to what the person is trying to do.
-* The character directs the user toward Touch ID.
+* The character teaches the owner to press Escape twice before Touch ID is shown.
 * Successful owner authentication disables Bonk and restores normal input.
 
 Bonk is intended for situations where the user wants their Mac to continue displaying or running something but does not want someone nearby interacting with it.
@@ -34,7 +34,7 @@ The product should feel less like a security utility and more like a tiny charac
 
 The basic interaction is:
 
-Click Bonk → Mac stays awake → input is blocked → someone touches Mac → character appears → BONK → Touch ID → unlocked
+Click Bonk → Mac stays awake → input is blocked → someone touches Mac → character reacts → owner presses Escape twice → Touch ID → unlocked
 
 Bonk does not replace the macOS lock screen.
 
@@ -111,9 +111,11 @@ The Mac is immediately guarded.
 
 ⸻
 
-4.2 One-action unlock
+4.2 Deliberate unlock
 
-Unlocking should primarily use Touch ID.
+Only two discrete Escape key presses within 650 milliseconds may start the macOS authentication prompt while Guard Mode is active. Holding Escape must not count as two presses. Mouse movement, clicks, scrolling, ordinary typing, shortcuts and persistent activity must never start authentication.
+
+After that deliberate gesture, unlocking should primarily use Touch ID.
 
 The user authenticates successfully and Bonk immediately disappears.
 
@@ -135,7 +137,7 @@ Bonk adds transparent overlays above it.
 
 Avoid conventional warning dialogs wherever possible.
 
-Instead of:
+Before the unlock gesture, instead of:
 
 Keyboard input has been disabled.
 
@@ -143,9 +145,9 @@ The character reacts to the keyboard.
 
 Instead of:
 
-Authentication required.
+Press Escape twice to unlock.
 
-The character points toward Touch ID.
+The character demonstrates the two-key gesture. Only after it is completed does the character point toward Touch ID.
 
 Bonk should communicate primarily through motion and short pieces of text.
 
@@ -241,7 +243,7 @@ The character responds appropriately.
 
 AUTHENTICATING
 
-Bonk requests owner authentication.
+Bonk has recognized two discrete Escape presses within 650 milliseconds and requests owner authentication.
 
 Touch ID is presented.
 
@@ -460,9 +462,9 @@ Level 5
 
 Persistent attempts.
 
-Character walks toward the Touch ID side of the screen and points upward.
+Character moves to a clear location and reminds the user of the unlock gesture.
 
-Use the finger.
+Double-tap Esc to unlock.
 
 The escalation resets after successful authentication.
 
@@ -529,7 +531,7 @@ angry
 blockShortcut
 cling
 tumble
-pointToTouchID
+promptDoubleEscape
 
 It may also use a Score question to estimate reaction intensity. All relevant questions should be sent together in one request against the same snapshot.
 
@@ -549,13 +551,19 @@ LocalReactionProvider implements deterministic versions of the core reactions. I
 
 Jev may choose personality and presentation only. It must never decide whether input is intercepted, whether Guard Mode remains active, whether authentication is accepted, whether permissions are sufficient or whether cleanup runs.
 
-The path to owner authentication must remain deterministic and available regardless of Jev’s output.
+The path to owner authentication must remain deterministic and available regardless of Jev’s output. Jev may suggest the curated `promptDoubleEscape` reaction, but it cannot detect the gesture or start authentication.
 
 ⸻
 
 11. Unlock Experience
 
-After an interaction, Bonk should provide an obvious path for the owner to unlock.
+Bonk should provide an obvious path for the owner to unlock without interrupting ordinary reactions.
+
+Text before authentication:
+
+Double-tap Esc to unlock.
+
+Two non-repeating Escape key-down events within 650 milliseconds form the unlock gesture. Any intervening non-Escape key resets the sequence. Detection remains entirely local and is not included in Jev snapshots.
 
 Character walks toward the upper-right region of the screen.
 
@@ -565,7 +573,7 @@ Text:
 
 Owner?
 
-Then macOS authentication is initiated using LocalAuthentication.
+Only after the double-Escape gesture, macOS authentication is initiated using LocalAuthentication.
 
 Touch ID prompt:
 
@@ -944,7 +952,7 @@ Bonk does not need Unity, Godot, Phaser, or Electron.
 
 Character animation can be implemented using native macOS rendering.
 
-The shipping character must use custom artwork rather than system emoji. Pointer tracking should update smoothly from local attempted-movement deltas even while the underlying mouse event is suppressed. Exact pointer coordinates and paths remain local to CharacterEngine and must not be included in Jev requests.
+The shipping character must use custom artwork rather than system emoji. Pointer tracking should update smoothly from local attempted-movement deltas even while the underlying mouse event is suppressed. Exact pointer coordinates and paths remain local to CharacterEngine and must not be included in Jev requests. The special recognition of Escape is used only by the local unlock-gesture detector; raw key codes must never enter the reaction pipeline or a Jev request.
 
 The initial character must have visibly distinct poses or props for waking, tracking, stalking, pouncing, bonking, swatting, typing, shortcut blocking, scrolling, tumbling, authentication pointing and celebration. Repeated events should vary both dialogue and motion instead of replaying one generic pose.
 
@@ -1131,7 +1139,7 @@ Version 0.1 should implement only:
 8. Mouse movement reaction
 9. Click → BONK animation
 10. Keyboard → annoyed animation
-11. Touch ID authentication
+11. Double Escape → Touch ID authentication
 12. Successful authentication restores input
 13. Multi-monitor support
 14. Safe failure handling
@@ -1329,6 +1337,8 @@ User clicks
        ↓
    BONK!
        ↓
+Owner presses Escape twice
+       ↓
 Character points toward Touch ID
        ↓
 Touch ID prompt
@@ -1361,7 +1371,7 @@ No character.
 
 Prototype 2 — Authentication
 
-Intercept → Touch ID → restore.
+Intercept → double Escape → Touch ID → restore.
 
 This validates the most important technical assumptions.
 

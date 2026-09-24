@@ -47,7 +47,7 @@ private struct CharacterGalleryView: View {
         ("Shortcut", .block, "absolutely not.", 0.7, 0),
         ("Scroll", .cling, "claws deployed.", 0.2, -0.8),
         ("Tumble", .tumble, "wheee—NO.", -0.4, 0.6),
-        ("Unlock", .point, "Use the finger.", 0.8, 0.8),
+        ("Unlock", .point, "Double-tap Esc.", 0.8, 0.8),
         ("Celebrate", .celebrate, "BONK OFF!", 0, 0)
     ]
 

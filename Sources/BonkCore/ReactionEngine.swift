@@ -125,7 +125,7 @@ public struct LocalReactionProvider: ReactionProvider {
 
     private func intent(for snapshot: ReactionSnapshot) -> ReactionIntent {
         if snapshot.escalationLevel >= 5, snapshot.sessionDuration == .long {
-            return .pointToTouchID
+            return .promptDoubleEscape
         }
 
         switch snapshot.interaction {
@@ -226,7 +226,7 @@ private struct JevRequest: Encodable {
     struct Questions: Encodable {
         let reaction = ChoiceQuestion(
             type: "choice",
-            instructions: "Choose the single best playful character reaction for the current guarded Mac interaction. Use motion energy and coarse direction to vary pointer and scroll reactions, respect escalation, and reserve pointToTouchID for persistent attempts.",
+            instructions: "Choose the single best playful character reaction for the current guarded Mac interaction. Use motion energy and coarse direction to vary pointer and scroll reactions, respect escalation, and reserve promptDoubleEscape for persistent attempts.",
             criteria: [
                 "notice": "Wake and acknowledge gentle first movement.",
                 "followCursor": "Track continuing pointer movement.",
@@ -241,7 +241,7 @@ private struct JevRequest: Encodable {
                 "blockShortcut": "Hold up a stop sign for a shortcut attempt.",
                 "cling": "Brace and cling during a small scroll.",
                 "tumble": "Get pushed or tumble in response to scrolling.",
-                "pointToTouchID": "Direct a persistent user to owner authentication."
+                "promptDoubleEscape": "Remind a persistent user that only a deliberate double-Escape gesture starts owner authentication."
             ]
         )
 

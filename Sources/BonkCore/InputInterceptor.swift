@@ -5,6 +5,7 @@ import Foundation
 
 public final class InputInterceptor: InputIntercepting {
     public var onSignal: ((InteractionSignal) -> Void)?
+    public var onAuthenticationGesture: (() -> Void)?
     public var onFailure: ((BonkError) -> Void)?
 
     public private(set) var isRunning = false
@@ -17,6 +18,7 @@ public final class InputInterceptor: InputIntercepting {
     private var virtualMouseLocation: CGPoint?
     private var pendingMovementDeltaX: Double = 0
     private var pendingMovementDeltaY: Double = 0
+    private var escapeSequenceDetector = EscapeSequenceDetector()
 
     public init() {}
 
@@ -87,6 +89,7 @@ public final class InputInterceptor: InputIntercepting {
         virtualMouseLocation = nil
         pendingMovementDeltaX = 0
         pendingMovementDeltaY = 0
+        escapeSequenceDetector.reset()
     }
 
     fileprivate func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
@@ -164,6 +167,17 @@ public final class InputInterceptor: InputIntercepting {
             )
 
         case .keyDown:
+            let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+            let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+            if escapeSequenceDetector.register(
+                keyCode: keyCode,
+                isRepeat: isRepeat,
+                at: now.timeIntervalSinceReferenceDate
+            ) {
+                onAuthenticationGesture?()
+                break
+            }
+
             let flags = event.flags
             let isShortcut = flags.contains(.maskCommand)
                 || flags.contains(.maskControl)
@@ -231,6 +245,35 @@ public final class InputInterceptor: InputIntercepting {
         .keyUp,
         .flagsChanged
     ]
+}
+
+struct EscapeSequenceDetector {
+    static let escapeKeyCode: Int64 = 53
+    static let maximumInterval: TimeInterval = 0.65
+
+    private var firstEscapeAt: TimeInterval?
+
+    mutating func register(keyCode: Int64, isRepeat: Bool, at timestamp: TimeInterval) -> Bool {
+        guard !isRepeat else { return false }
+        guard keyCode == Self.escapeKeyCode else {
+            reset()
+            return false
+        }
+
+        if let firstEscapeAt,
+           timestamp >= firstEscapeAt,
+           timestamp - firstEscapeAt <= Self.maximumInterval {
+            reset()
+            return true
+        }
+
+        firstEscapeAt = timestamp
+        return false
+    }
+
+    mutating func reset() {
+        firstEscapeAt = nil
+    }
 }
 
 private func bonkEventTapCallback(
