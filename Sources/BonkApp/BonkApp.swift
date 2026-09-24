@@ -20,10 +20,6 @@ struct BonkMenuBarApp: App {
             MenuBarLabel(model: model)
         }
         .menuBarExtraStyle(.menu)
-
-        Settings {
-            SettingsView(model: model)
-        }
     }
 }
 
@@ -69,6 +65,35 @@ private final class AboutWindowController {
         window.title = "About Bonk"
         window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: AboutView())
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        self.window = window
+        NSApplication.shared.activate(ignoringOtherApps: true)
+    }
+}
+
+@MainActor
+private final class SettingsWindowController {
+    static let shared = SettingsWindowController()
+
+    private var window: NSWindow?
+
+    func show(model: AppModel) {
+        if let window {
+            window.makeKeyAndOrderFront(nil)
+            NSApplication.shared.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 500),
+            styleMask: [.titled, .closable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Bonk Settings"
+        window.isReleasedWhenClosed = false
+        window.contentView = NSHostingView(rootView: SettingsView(model: model))
         window.center()
         window.makeKeyAndOrderFront(nil)
         self.window = window
@@ -167,12 +192,7 @@ private struct MenuBarContent: View {
         Divider()
 
         Button("Settings…") {
-            NSApplication.shared.sendAction(
-                Selector(("showSettingsWindow:")),
-                to: nil,
-                from: nil
-            )
-            NSApplication.shared.activate(ignoringOtherApps: true)
+            SettingsWindowController.shared.show(model: model)
         }
 
         Button("About Bonk") {
