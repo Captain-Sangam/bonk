@@ -27,6 +27,7 @@ final class ReactionEngineTests: XCTestCase {
         XCTAssertEqual(snapshot.escalationLevel, 2)
         XCTAssertEqual(snapshot.motionEnergy, .still)
         XCTAssertEqual(snapshot.coarseDirection, .stationary)
+        XCTAssertEqual(snapshot.typingPace, .slow)
 
         let encoded = String(data: try JSONEncoder().encode(snapshot), encoding: .utf8)!
         XCTAssertFalse(encoded.contains("417"))
@@ -197,10 +198,65 @@ final class ReactionEngineTests: XCTestCase {
         XCTAssertEqual(plan.confidence, 0)
     }
 
+    func testDialogueCatalogContainsHundredsOfStableOptions() {
+        let catalog = DialogueCatalog.shared
+        XCTAssertGreaterThanOrEqual(catalog.all.count, 300)
+        XCTAssertEqual(Set(catalog.all.map(\.id)).count, catalog.all.count)
+
+        for intent in ReactionIntent.allCases {
+            XCTAssertTrue(catalog.all.contains { $0.intent == intent })
+        }
+    }
+
+    func testTypingScaleIsBoundedIgnoresRepeatAndDecays() {
+        var tracker = TypingScaleTracker()
+        let start = Date(timeIntervalSinceReferenceDate: 10_000)
+        var envelope = tracker.envelope
+
+        for index in 0..<30 {
+            envelope = tracker.record(
+                InteractionSignal(
+                    kind: .keyboardActivity,
+                    timestamp: start.addingTimeInterval(Double(index) * 0.03)
+                )
+            )
+        }
+
+        XCTAssertEqual(envelope.peakScale, TypingScaleEnvelope.maximumScale, accuracy: 0.0001)
+        let beforeRepeat = envelope
+        envelope = tracker.record(
+            InteractionSignal(
+                kind: .keyboardActivity,
+                timestamp: start.addingTimeInterval(1),
+                isAutoRepeat: true
+            )
+        )
+        XCTAssertEqual(envelope, beforeRepeat)
+
+        let halfway = envelope.scale(
+            at: envelope.decayStartsAt + (TypingScaleEnvelope.decayDuration / 2)
+        )
+        XCTAssertGreaterThan(halfway, 1)
+        XCTAssertLessThan(halfway, TypingScaleEnvelope.maximumScale)
+        XCTAssertEqual(
+            envelope.scale(at: envelope.decayStartsAt + TypingScaleEnvelope.decayDuration + 1),
+            1,
+            accuracy: 0.0001
+        )
+    }
+
     func testJevProviderValidatesAndMapsTypedResponse() async throws {
-        MockURLProtocol.responseData = responseData(choice: "angry", confidence: 0.91, score: 3.5)
         let provider = makeJevProvider()
         let snapshot = makeSnapshot()
+        let dialogueID = try XCTUnwrap(
+            DialogueCatalog.shared.shortlist(for: snapshot).first { $0.intent == .angry }?.id
+        )
+        MockURLProtocol.responseData = responseData(
+            choice: "angry",
+            confidence: 0.91,
+            score: 3.5,
+            dialogueID: dialogueID
+        )
 
         let plan = try await provider.reaction(for: snapshot)
 
@@ -208,11 +264,17 @@ final class ReactionEngineTests: XCTestCase {
         XCTAssertEqual(plan.intensity, 0.875)
         XCTAssertEqual(plan.confidence, 0.91)
         XCTAssertEqual(plan.source, .jev)
+        XCTAssertEqual(plan.tone, .smug)
+        XCTAssertEqual(plan.pacing, .coolDown)
+        XCTAssertEqual(plan.flourish, .shake)
+        XCTAssertEqual(plan.dialogueID, dialogueID)
 
         let request = try provider.makeRequest(for: snapshot)
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer unit-test-key")
         let body = String(data: request.httpBody!, encoding: .utf8)!
         XCTAssertTrue(body.contains("jev-1.13.0"))
+        XCTAssertTrue(body.contains("\"dialogue\""))
+        XCTAssertTrue(body.contains("\"typingPace\""))
         XCTAssertFalse(body.contains("unit-test-key"))
         XCTAssertFalse(body.lowercased().contains("keycode"))
     }
@@ -237,6 +299,37 @@ final class ReactionEngineTests: XCTestCase {
         } catch {
             XCTAssertEqual(error as? BonkError, .invalidJevResponse)
         }
+    }
+
+    @MainActor
+    func testJevRunsOnlyAfterTheQuietPeriod() async throws {
+        let provider = RecordingReactionProvider()
+        let director = JevDirectorMonitor()
+        let character = CharacterEngine { false }
+        let controller = ReactionController(
+            characterEngine: character,
+            director: director,
+            quietPeriodNanoseconds: 80_000_000,
+            providerFactory: { _ in provider },
+            configuration: { (true, "unit-test-key") }
+        )
+
+        controller.beginSession()
+        controller.handle(InteractionSignal(kind: .keyboardActivity))
+        try await Task.sleep(nanoseconds: 35_000_000)
+        let callsBeforeReset = await provider.calls
+        XCTAssertEqual(callsBeforeReset, 0)
+
+        controller.handle(InteractionSignal(kind: .keyboardActivity))
+        try await Task.sleep(nanoseconds: 55_000_000)
+        let callsDuringQuietPeriod = await provider.calls
+        XCTAssertEqual(callsDuringQuietPeriod, 0)
+
+        try await Task.sleep(nanoseconds: 55_000_000)
+        let callsAfterQuietPeriod = await provider.calls
+        XCTAssertEqual(callsAfterQuietPeriod, 1)
+        XCTAssertEqual(director.requestCount, 1)
+        controller.endSession()
     }
 
     private func makeJevProvider() -> JevReactionProvider {
@@ -281,7 +374,12 @@ final class ReactionEngineTests: XCTestCase {
         )
     }
 
-    private func responseData(choice: String, confidence: Double, score: Double) -> Data {
+    private func responseData(
+        choice: String,
+        confidence: Double,
+        score: Double,
+        dialogueID: String = "not-a-candidate"
+    ) -> Data {
         Data(
             """
             {
@@ -299,11 +397,52 @@ final class ReactionEngineTests: XCTestCase {
                   "confidence": 0.9,
                   "legend": { "0": "low", "4": "high" },
                   "probabilities": { "4": 1.0 }
+                },
+                "tone": {
+                  "type": "choice",
+                  "choice": "smug",
+                  "confidence": 0.9,
+                  "probabilities": { "smug": 1.0 }
+                },
+                "pacing": {
+                  "type": "choice",
+                  "choice": "coolDown",
+                  "confidence": 0.9,
+                  "probabilities": { "coolDown": 1.0 }
+                },
+                "flourish": {
+                  "type": "choice",
+                  "choice": "shake",
+                  "confidence": 0.9,
+                  "probabilities": { "shake": 1.0 }
+                },
+                "dialogue": {
+                  "type": "choice",
+                  "choice": "\(dialogueID)",
+                  "confidence": 0.9,
+                  "probabilities": { "\(dialogueID)": 1.0 }
                 }
               },
               "usage": { "input_tokens": 50, "output_tokens": 10 }
             }
             """.utf8
+        )
+    }
+}
+
+private actor RecordingReactionProvider: ReactionProvider {
+    private(set) var calls = 0
+
+    func reaction(for snapshot: ReactionSnapshot) async throws -> ReactionPlan {
+        calls += 1
+        return ReactionPlan(
+            intent: .coverEars,
+            intensity: 0.5,
+            confidence: 0.9,
+            source: .jev,
+            tone: .playful,
+            pacing: .coolDown,
+            flourish: .pose
         )
     }
 }

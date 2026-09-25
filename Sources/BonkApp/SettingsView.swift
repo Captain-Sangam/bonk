@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var model: AppModel
     @ObservedObject private var settings: SettingsStore
+    @ObservedObject private var director: JevDirectorMonitor
     @State private var apiKey = ""
     @State private var savedKeySuffix: String?
     @State private var keyConfirmation: String?
@@ -12,6 +13,7 @@ struct SettingsView: View {
         self.model = model
         let settings = model.settings
         self.settings = settings
+        self.director = model.jevDirector
         _savedKeySuffix = State(initialValue: settings.jevAPIKey.map { String($0.suffix(4)) })
     }
 
@@ -29,8 +31,8 @@ struct SettingsView: View {
                 Toggle("Character sounds", isOn: $settings.soundsEnabled)
             }
 
-            Section("Reactions") {
-                Toggle("AI-powered reactions with Jev", isOn: $settings.aiReactionsEnabled)
+            Section("Jev reaction engine") {
+                Toggle("Enable Jev character direction", isOn: $settings.aiReactionsEnabled)
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Jev API key")
                         .font(.headline)
@@ -87,6 +89,32 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            if settings.aiReactionsEnabled {
+                Section("Jev Director") {
+                    HStack(spacing: 10) {
+                        Image(systemName: directorIcon)
+                            .foregroundStyle(directorColor)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(director.phase.label)
+                                .font(.subheadline.weight(.semibold))
+                            if let decision = director.lastDecision {
+                                Text(decision)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                        Text("\(director.requestCount) calls")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text("Jev waits for a two-second quiet period, then directs the fox's next reaction, tone, pacing, flourish, intensity, and dialogue.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("Shortcut") {
                 HStack {
                     Text("Toggle Bonk")
@@ -108,7 +136,26 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
-        .frame(width: 480, height: 500)
+        .frame(width: 500, height: 640)
+    }
+
+    private var directorIcon: String {
+        switch director.phase {
+        case .localOnly: return "bolt.slash"
+        case .waiting: return "hourglass"
+        case .directing: return "brain.head.profile"
+        case .applied: return "sparkles"
+        case .unavailable: return "arrow.triangle.2.circlepath"
+        }
+    }
+
+    private var directorColor: Color {
+        switch director.phase {
+        case .applied: return .green
+        case .directing: return .orange
+        case .unavailable: return .yellow
+        default: return .secondary
+        }
     }
 
     private func saveAPIKey() {

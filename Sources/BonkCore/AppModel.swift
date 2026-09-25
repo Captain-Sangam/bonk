@@ -6,6 +6,7 @@ import Foundation
 public final class AppModel: ObservableObject {
     public let settings: SettingsStore
     public let characterEngine: CharacterEngine
+    public let jevDirector: JevDirectorMonitor
     public let guardController: GuardController
 
     private let shortcutMonitor = ShortcutMonitor()
@@ -15,13 +16,18 @@ public final class AppModel: ObservableObject {
     public init() {
         let settings = SettingsStore()
         let characterEngine = CharacterEngine { settings.soundsEnabled }
-        let reactionController = ReactionController(characterEngine: characterEngine) {
+        let jevDirector = JevDirectorMonitor()
+        let reactionController = ReactionController(
+            characterEngine: characterEngine,
+            director: jevDirector
+        ) {
             (settings.aiReactionsEnabled, settings.jevAPIKey)
         }
         let overlayManager = OverlayManager(characterEngine: characterEngine)
 
         self.settings = settings
         self.characterEngine = characterEngine
+        self.jevDirector = jevDirector
         guardController = GuardController(
             settings: settings,
             inputInterceptor: InputInterceptor(),

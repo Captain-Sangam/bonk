@@ -1,6 +1,6 @@
 # Architecture
 
-Bonk is a native SwiftUI and AppKit menu-bar application. Its safety-critical path is local and deterministic: input interception, owner authentication, cleanup, and offline reactions do not depend on Jev or network access.
+Bonk is a native SwiftUI and AppKit menu-bar application. Jev is the core creative director for the character engine, while the safety-critical path remains local and deterministic: input interception, owner authentication, cleanup, instant cursor presentation, and fallback reactions do not depend on network access.
 
 ## Component map
 
@@ -13,11 +13,13 @@ flowchart LR
     GuardController --> AwakeManager
     GuardController --> AuthenticationManager
     InputInterceptor -->|sanitized signal| ReactionController
+    InputInterceptor -->|exact local position| CursorPresentation
     InputInterceptor -->|double Escape only| GuardController
     ReactionController --> LocalReactionProvider
-    ReactionController -. optional .-> JevReactionProvider
+    ReactionController -->|after 2 seconds quiet| JevReactionProvider
     LocalReactionProvider --> CharacterEngine
-    JevReactionProvider -->|validated plan| CharacterEngine
+    JevReactionProvider -->|validated multi-axis direction| CharacterEngine
+    CursorPresentation --> OverlayManager
     CharacterEngine --> OverlayManager
 ```
 
@@ -26,8 +28,11 @@ flowchart LR
 | `AppModel` | Composes services, starts the global shortcut, and exposes app state to SwiftUI. |
 | `GuardController` | Owns the guarded-session lifecycle and guarantees cleanup. |
 | `InputInterceptor` | Suppresses Quartz input, classifies attempts, tracks the virtual cursor, and recognizes double Escape locally. |
-| `ReactionController` | Presents an immediate local reaction and optionally requests a validated Jev replacement. |
-| `CharacterEngine` | Converts reaction plans and local cursor state into a renderable presentation. |
+| `ReactionController` | Presents immediate local feedback, debounces activity for two seconds, and applies only the latest validated Jev direction. |
+| `JevReactionProvider` | Asks Jev to direct reaction, tone, intensity, pacing, flourish, and dialogue in one typed request. |
+| `JevDirectorMonitor` | Exposes waiting, directing, applied, and local-fallback status to Settings. |
+| `CharacterEngine` | Converts directed plans, dialogue history, typing energy, and local motion into a renderable presentation. |
+| `DialogueCatalog` | Provides 636 bounded lines and context-filtered Jev candidate lists. |
 | `OverlayManager` | Maintains one transparent, high-level window per display. |
 | `AuthenticationManager` | Delegates owner verification to macOS `LocalAuthentication`. |
 | `AwakeManager` | Holds the activity assertion used while Guard Mode is active. |
@@ -53,9 +58,11 @@ Activation creates every overlay before input interception begins. Shutdown and 
 
 ## Input and rendering flow
 
-The Quartz event-tap callback performs bounded local work and returns `nil` so events do not reach ordinary applications. Mouse deltas update a local virtual cursor at up to 60 Hz because the system cursor itself cannot move while events are suppressed.
+The Quartz event-tap callback performs bounded local work and returns `nil` so events do not reach ordinary applications. Mouse deltas update a local virtual cursor at up to 120 Hz because the system cursor itself cannot move while events are suppressed.
 
-`CharacterEngine` owns exact cursor positions and animation state. The reaction snapshot receives only coarse direction, motion energy, cursor region, event category, and aggregate counts.
+Exact cursor position is published through a dedicated `CursorPresentation` and rendered without easing. The fox's body remains on its own spring-animated presentation path. `CharacterEngine` also owns the bounded typing-scale envelope and recent dialogue history.
+
+The reaction snapshot receives only coarse direction, motion energy, typing pace, cursor region, event category, and aggregate counts. Each input resets a two-second Jev quiet-period task. A fresh result may affect character presentation but never the event tap, authentication, overlay lifecycle, or fail-open cleanup.
 
 ## Packaging
 

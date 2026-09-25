@@ -94,6 +94,30 @@ private struct BonkChecks {
                   "confidence": 0.88,
                   "legend": { "0": "low", "4": "high" },
                   "probabilities": { "3": 0.5, "4": 0.5 }
+                },
+                "tone": {
+                  "type": "choice",
+                  "choice": "dramatic",
+                  "confidence": 0.86,
+                  "probabilities": { "dramatic": 0.86, "playful": 0.14 }
+                },
+                "pacing": {
+                  "type": "choice",
+                  "choice": "escalate",
+                  "confidence": 0.82,
+                  "probabilities": { "escalate": 0.82, "sustain": 0.18 }
+                },
+                "flourish": {
+                  "type": "choice",
+                  "choice": "shake",
+                  "confidence": 0.84,
+                  "probabilities": { "shake": 0.84, "none": 0.16 }
+                },
+                "dialogue": {
+                  "type": "choice",
+                  "choice": "not-a-candidate",
+                  "confidence": 0.75,
+                  "probabilities": { "not-a-candidate": 1.0 }
                 }
               },
               "usage": { "input_tokens": 100, "output_tokens": 10 }
@@ -114,10 +138,16 @@ private struct BonkChecks {
         try require(remote.intent == .angry, "Jev choice did not map to a known reaction")
         try require(remote.source == .jev, "Jev reaction was not marked remote")
         try require(remote.intensity == 0.875, "Jev intensity was not normalized")
+        try require(remote.tone == .dramatic, "Jev tone was not applied")
+        try require(remote.pacing == .escalate, "Jev pacing was not applied")
+        try require(remote.flourish == .shake, "Jev flourish was not applied")
+        try require(BonkDialogueMetrics.optionCount >= 300, "Dialogue catalog did not contain hundreds of options")
 
         let outboundRequest = try jev.makeRequest(for: snapshot)
         let body = String(data: outboundRequest.httpBody ?? Data(), encoding: .utf8)!
         try require(body.contains("jev-1.13.0"), "Jev request did not pin the model version")
+        try require(body.contains("\"dialogue\""), "Jev request did not include dialogue direction")
+        try require(body.contains("\"typingPace\""), "Jev request did not include a coarse typing pace")
         try require(!body.lowercased().contains("keycode"), "Jev request included key content")
         try require(!body.contains("test-key"), "API key leaked into request body")
     }

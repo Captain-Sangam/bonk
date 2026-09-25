@@ -39,9 +39,21 @@ private struct BonkCharacterGallery {
         hostingView.frame = CGRect(origin: .zero, size: size)
         hostingView.layoutSubtreeIfNeeded()
 
-        guard let bitmap = hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds) else {
+        guard let bitmap = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int(size.width),
+            pixelsHigh: Int(size.height),
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        ) else {
             throw GalleryError.renderFailed
         }
+        bitmap.size = size
         hostingView.cacheDisplay(in: hostingView.bounds, to: bitmap)
         guard let png = bitmap.representation(using: .png, properties: [:]) else {
             throw GalleryError.renderFailed
@@ -62,7 +74,12 @@ private struct GuardModePreviewView: View {
         facing: 1,
         motionSpeed: 0.8,
         variant: 3,
-        reactionStartedAt: Date.timeIntervalSinceReferenceDate - 0.2
+        reactionStartedAt: Date.timeIntervalSinceReferenceDate - 0.2,
+        tone: .dramatic,
+        pacing: .escalate,
+        flourish: .pose,
+        typingScalePeak: 1.65,
+        typingDecayStartsAt: Date.timeIntervalSinceReferenceDate + 1
     )
 
     var body: some View {
@@ -140,26 +157,42 @@ private struct GuardModePreviewView: View {
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
                             .stroke(Color.white.opacity(0.28), lineWidth: 1)
                     )
+                    .zIndex(2)
 
                 BonkCharacterView(presentation: presentation)
-                    .scaleEffect(1.65)
                     .frame(width: 230, height: 235)
                     .shadow(color: .black.opacity(0.35), radius: 9, y: 6)
+                    .zIndex(1)
             }
             .offset(x: 390, y: 170)
 
             VStack(alignment: .leading, spacing: 5) {
-                Text("INPUT BLOCKED. REACTION ENABLED.")
+                Text("INPUT BLOCKED. JEV DIRECTING.")
                     .font(.system(size: 29, weight: .black, design: .rounded))
                 Text("Your desktop stays visible. Bonk handles the rest.")
                     .font(.system(size: 18, weight: .medium, design: .rounded))
                     .foregroundStyle(Color.white.opacity(0.68))
+                HStack(spacing: 9) {
+                    badge("120 HZ LOCAL CURSOR")
+                    badge("TYPING ENERGY 1.65×")
+                    badge("DRAMATIC · ESCALATE · POSE")
+                }
+                .padding(.top, 10)
             }
             .foregroundStyle(Color.white)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
             .padding(38)
         }
         .background(Color(red: 0.055, green: 0.06, blue: 0.09))
+    }
+
+    private func badge(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: .bold, design: .rounded))
+            .foregroundStyle(Color.white.opacity(0.82))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.white.opacity(0.1), in: Capsule())
     }
 }
 
@@ -189,7 +222,7 @@ private struct CharacterGalleryView: View {
                 Text("BONK CHARACTER SYSTEM")
                     .font(.system(size: 26, weight: .black, design: .rounded))
                     .foregroundStyle(Color.white)
-                Text("Original fox mascot • local tracking • state-specific motion and props")
+                Text("Original fox mascot • instant local cursor • Jev-directed state, tone, pacing, flourish and dialogue")
                     .font(.system(size: 14, weight: .medium, design: .rounded))
                     .foregroundStyle(Color.white.opacity(0.62))
             }
