@@ -2,9 +2,9 @@
 
 These documents capture Bonk's current logical design. They describe the behavior and safety boundaries implemented by the code rather than a future product backlog.
 
-- [Architecture](architecture.md) — components, ownership, state transitions, and cleanup
-- [Interaction design](interaction-design.md) — activation, reactions, and double-Escape unlock
-- [Reaction engine](reaction-engine.md) — local reactions, Jev integration, and validation
+- [Architecture](architecture.md) — components, ownership, cursor/reaction separation, state transitions, and cleanup
+- [Interaction design](interaction-design.md) — instant cursor tracking, typing energy, Jev-directed reactions, and double-Escape unlock
+- [Reaction engine](reaction-engine.md) — Jev's core directing role, quiet-period scheduling, dialogue selection, and validation
 - [Privacy and security](privacy-and-security.md) — trust boundaries, collected data, and failure behavior
 - [Character generation prompts](design/character-prompts.md) — reproducible art direction for the original fox mascot
 

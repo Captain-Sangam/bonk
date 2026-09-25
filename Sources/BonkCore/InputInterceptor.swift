@@ -120,7 +120,7 @@ public final class InputInterceptor: InputIntercepting {
             pendingMovementDeltaY += eventDeltaY
 
             let elapsed = lastMovementSignalDate.map { now.timeIntervalSince($0) } ?? .infinity
-            if elapsed >= 1.0 / 60.0 {
+            if elapsed >= 1.0 / 120.0 {
                 let deltaX = pendingMovementDeltaX
                 let deltaY = pendingMovementDeltaY
                 let distance = hypot(deltaX, deltaY)
@@ -186,7 +186,8 @@ public final class InputInterceptor: InputIntercepting {
                 InteractionSignal(
                     kind: isShortcut ? .shortcutAttempt : .keyboardActivity,
                     timestamp: now,
-                    globalLocation: location
+                    globalLocation: location,
+                    isAutoRepeat: isRepeat
                 )
             )
 

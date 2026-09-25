@@ -39,13 +39,22 @@ public struct NormalizedPoint: Equatable, Sendable {
     public static let touchID = NormalizedPoint(x: 0.9, y: 0.9)
 }
 
+public struct CursorPresentation: Equatable, Sendable {
+    public var position: NormalizedPoint?
+    public var activeDisplayNumber: Int?
+
+    public init(position: NormalizedPoint? = nil, activeDisplayNumber: Int? = nil) {
+        self.position = position
+        self.activeDisplayNumber = activeDisplayNumber
+    }
+}
+
 public struct CharacterPresentation: Equatable, Sendable {
     public var state: CharacterState
     public var message: String?
     public var position: NormalizedPoint
     public var activeDisplayNumber: Int?
     public var intensity: Double
-    public var cursorPosition: NormalizedPoint?
     public var lookX: Double
     public var lookY: Double
     public var facing: Double
@@ -54,6 +63,11 @@ public struct CharacterPresentation: Equatable, Sendable {
     public var inputDeltaY: Double
     public var variant: Int
     public var reactionStartedAt: TimeInterval
+    public var tone: ReactionTone
+    public var pacing: ReactionPacing
+    public var flourish: ReactionFlourish
+    public var typingScalePeak: Double
+    public var typingDecayStartsAt: TimeInterval
 
     public init(
         state: CharacterState = .sleeping,
@@ -61,7 +75,6 @@ public struct CharacterPresentation: Equatable, Sendable {
         position: NormalizedPoint = .resting,
         activeDisplayNumber: Int? = nil,
         intensity: Double = 0,
-        cursorPosition: NormalizedPoint? = nil,
         lookX: Double = 0,
         lookY: Double = 0,
         facing: Double = 1,
@@ -69,14 +82,18 @@ public struct CharacterPresentation: Equatable, Sendable {
         inputDeltaX: Double = 0,
         inputDeltaY: Double = 0,
         variant: Int = 0,
-        reactionStartedAt: TimeInterval = Date.timeIntervalSinceReferenceDate
+        reactionStartedAt: TimeInterval = Date.timeIntervalSinceReferenceDate,
+        tone: ReactionTone = .sleepy,
+        pacing: ReactionPacing = .sustain,
+        flourish: ReactionFlourish = .none,
+        typingScalePeak: Double = 1.0,
+        typingDecayStartsAt: TimeInterval = 0
     ) {
         self.state = state
         self.message = message
         self.position = position
         self.activeDisplayNumber = activeDisplayNumber
         self.intensity = intensity
-        self.cursorPosition = cursorPosition
         self.lookX = lookX
         self.lookY = lookY
         self.facing = facing
@@ -85,15 +102,30 @@ public struct CharacterPresentation: Equatable, Sendable {
         self.inputDeltaY = inputDeltaY
         self.variant = variant
         self.reactionStartedAt = reactionStartedAt
+        self.tone = tone
+        self.pacing = pacing
+        self.flourish = flourish
+        self.typingScalePeak = min(max(typingScalePeak, TypingScaleEnvelope.normalScale), TypingScaleEnvelope.maximumScale)
+        self.typingDecayStartsAt = typingDecayStartsAt
+    }
+
+    public func typingScale(at timestamp: TimeInterval) -> Double {
+        TypingScaleEnvelope(
+            peakScale: typingScalePeak,
+            decayStartsAt: typingDecayStartsAt
+        ).scale(at: timestamp)
     }
 }
 
 @MainActor
 public final class CharacterEngine: ObservableObject, CharacterPresenting {
     @Published public private(set) var presentation = CharacterPresentation()
+    @Published public private(set) var cursorPresentation = CursorPresentation()
 
     private var soundsEnabled: () -> Bool
     private var reactionSequence = 0
+    private var typingScaleTracker = TypingScaleTracker()
+    private var recentDialogueIDs: [String] = []
 
     public init(soundsEnabled: @escaping () -> Bool) {
         self.soundsEnabled = soundsEnabled
@@ -101,7 +133,10 @@ public final class CharacterEngine: ObservableObject, CharacterPresenting {
 
     public func reset() {
         reactionSequence = 0
+        typingScaleTracker.reset()
+        recentDialogueIDs.removeAll(keepingCapacity: true)
         presentation = CharacterPresentation()
+        cursorPresentation = CursorPresentation()
     }
 
     public func context(for point: CGPoint?) -> (displayIndex: Int?, region: CoarseCursorRegion) {
@@ -115,13 +150,23 @@ public final class CharacterEngine: ObservableObject, CharacterPresenting {
     }
 
     public func observe(_ signal: InteractionSignal) {
+        var next = presentation
+        if (signal.kind == .keyboardActivity || signal.kind == .shortcutAttempt), !signal.isAutoRepeat {
+            let envelope = typingScaleTracker.record(signal)
+            next.typingScalePeak = envelope.peakScale
+            next.typingDecayStartsAt = envelope.decayStartsAt
+        }
+
         guard let point = signal.globalLocation,
               let (screen, normalized) = Self.screenPosition(for: point)
-        else { return }
+        else {
+            presentation = next
+            return
+        }
 
-        var next = presentation
-        next.activeDisplayNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? Int
-        next.cursorPosition = normalized
+        let displayNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? Int
+        cursorPresentation = CursorPresentation(position: normalized, activeDisplayNumber: displayNumber)
+        next.activeDisplayNumber = displayNumber
         next.inputDeltaX = min(max(signal.deltaX / 40, -1), 1)
         next.inputDeltaY = min(max(signal.deltaY / 40, -1), 1)
         next.motionSpeed = min(max(signal.magnitude / 1_200, 0), 1)
@@ -153,13 +198,24 @@ public final class CharacterEngine: ObservableObject, CharacterPresenting {
         reactionSequence += 1
         next.state = state(for: plan.intent)
         next.variant = reactionSequence
-        next.message = message(for: plan.intent, variant: reactionSequence)
-        next.intensity = plan.intensity
+        next.message = message(for: plan)
+        next.tone = plan.tone
+        next.pacing = plan.pacing
+        next.flourish = plan.flourish
+        switch plan.pacing {
+        case .escalate:
+            next.intensity = max(plan.intensity, min(next.intensity + 0.2, 1))
+        case .sustain:
+            next.intensity = plan.intensity
+        case .coolDown:
+            next.intensity = min(plan.intensity, 0.45)
+        }
         next.reactionStartedAt = Date.timeIntervalSinceReferenceDate
 
         if let point, let (screen, normalized) = Self.screenPosition(for: point) {
-            next.activeDisplayNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? Int
-            next.cursorPosition = normalized
+            let displayNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? Int
+            next.activeDisplayNumber = displayNumber
+            cursorPresentation = CursorPresentation(position: normalized, activeDisplayNumber: displayNumber)
             next.lookX = min(max((normalized.x - next.position.x) * 4, -1), 1)
             next.lookY = min(max((normalized.y - next.position.y) * 4, -1), 1)
 
@@ -205,6 +261,9 @@ public final class CharacterEngine: ObservableObject, CharacterPresenting {
         presentation.position = .touchID
         presentation.facing = 1
         presentation.intensity = 0.5
+        presentation.tone = .encouraging
+        presentation.pacing = .coolDown
+        presentation.flourish = .pose
         presentation.variant += 1
         presentation.reactionStartedAt = Date.timeIntervalSinceReferenceDate
     }
@@ -213,6 +272,9 @@ public final class CharacterEngine: ObservableObject, CharacterPresenting {
         presentation.state = .celebrate
         presentation.message = "BONK OFF!"
         presentation.intensity = 1
+        presentation.tone = .playful
+        presentation.pacing = .coolDown
+        presentation.flourish = .sparkle
         presentation.variant += 1
         presentation.reactionStartedAt = Date.timeIntervalSinceReferenceDate
         if soundsEnabled() {
@@ -239,25 +301,29 @@ public final class CharacterEngine: ObservableObject, CharacterPresenting {
         }
     }
 
-    private func message(for intent: ReactionIntent, variant: Int) -> String? {
-        func pick(_ messages: [String]) -> String { messages[variant % messages.count] }
+    private func message(for plan: ReactionPlan) -> String? {
+        let catalog = DialogueCatalog.shared
+        let selected: DialogueLine?
 
-        switch intent {
-        case .notice: return pick(["...oh?", "caught you.", "tiny paws. big job."])
-        case .followCursor: return pick(["I see that cursor.", "nice try.", "where are we going?"])
-        case .stalkCursor: return pick(["stealth mode.", "I can do this all day.", "still watching."])
-        case .pounce: return pick(["GOTCHA.", "pounce protocol!", "too fast? never."])
-        case .bonk: return pick(["BONK!", "boop denied.", "not today."])
-        case .swat: return pick(["swat.", "hands off.", "back you go."])
-        case .repeatBonk: return pick(["BONK BONK.", "again? really?", "rapid bonk mode."])
-        case .annoyed: return pick(["nope.", "I heard that.", "keyboard privileges revoked."])
-        case .coverEars: return pick(["too loud.", "my ears!", "typing detected. regrettably."])
-        case .angry: return pick(["seriously?", "dude.", "you chose chaos."])
-        case .blockShortcut: return pick(["shortcut denied.", "absolutely not.", "nice try, power user."])
-        case .cling: return pick(["hold still!", "who moved the floor?", "claws deployed."])
-        case .tumble: return pick(["wheee—NO.", "gravity filed a complaint.", "I meant to do that."])
-        case .promptDoubleEscape: return "Double-tap Esc to unlock."
+        if let directed = catalog.line(id: plan.dialogueID),
+           directed.intent == plan.intent,
+           !recentDialogueIDs.contains(directed.id) {
+            selected = directed
+        } else {
+            selected = catalog.select(
+                intent: plan.intent,
+                tone: plan.tone,
+                excluding: Set(recentDialogueIDs),
+                seed: reactionSequence
+            )
         }
+
+        guard let selected else { return nil }
+        recentDialogueIDs.append(selected.id)
+        if recentDialogueIDs.count > 10 {
+            recentDialogueIDs.removeFirst(recentDialogueIDs.count - 10)
+        }
+        return selected.text
     }
 
     private func playSound(for intent: ReactionIntent) {

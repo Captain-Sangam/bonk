@@ -26,6 +26,7 @@ public struct InteractionSignal: Sendable {
     public let magnitude: Double
     public let deltaX: Double
     public let deltaY: Double
+    public let isAutoRepeat: Bool
 
     public init(
         kind: InteractionKind,
@@ -33,7 +34,8 @@ public struct InteractionSignal: Sendable {
         globalLocation: CGPoint? = nil,
         magnitude: Double = 1,
         deltaX: Double = 0,
-        deltaY: Double = 0
+        deltaY: Double = 0,
+        isAutoRepeat: Bool = false
     ) {
         self.kind = kind
         self.timestamp = timestamp
@@ -41,6 +43,7 @@ public struct InteractionSignal: Sendable {
         self.magnitude = magnitude
         self.deltaX = deltaX
         self.deltaY = deltaY
+        self.isAutoRepeat = isAutoRepeat
     }
 }
 
@@ -63,6 +66,38 @@ public enum InteractionRate: String, Codable, Sendable {
     case low
     case medium
     case high
+}
+
+public enum TypingPace: String, Codable, Sendable {
+    case none
+    case slow
+    case steady
+    case fast
+    case frantic
+}
+
+public enum ReactionTone: String, Codable, CaseIterable, Sendable {
+    case playful
+    case smug
+    case grumpy
+    case encouraging
+    case dramatic
+    case sleepy
+}
+
+public enum ReactionPacing: String, Codable, CaseIterable, Sendable {
+    case escalate
+    case sustain
+    case coolDown
+}
+
+public enum ReactionFlourish: String, Codable, CaseIterable, Sendable {
+    case none
+    case hop
+    case shake
+    case spin
+    case pose
+    case sparkle
 }
 
 public enum SessionDurationBucket: String, Codable, Sendable {
@@ -113,6 +148,8 @@ public struct ReactionSnapshot: Codable, Equatable, Sendable {
     public let cursorRegion: CoarseCursorRegion
     public let motionEnergy: MotionEnergy
     public let coarseDirection: CoarseDirection
+    public let typingPace: TypingPace
+    public let recentCharacterBeats: [String]
 
     public init(
         interaction: InteractionKind,
@@ -124,7 +161,9 @@ public struct ReactionSnapshot: Codable, Equatable, Sendable {
         displayIndex: Int?,
         cursorRegion: CoarseCursorRegion,
         motionEnergy: MotionEnergy = .still,
-        coarseDirection: CoarseDirection = .stationary
+        coarseDirection: CoarseDirection = .stationary,
+        typingPace: TypingPace = .none,
+        recentCharacterBeats: [String] = []
     ) {
         self.interaction = interaction
         self.recentEventCounts = recentEventCounts
@@ -136,6 +175,8 @@ public struct ReactionSnapshot: Codable, Equatable, Sendable {
         self.cursorRegion = cursorRegion
         self.motionEnergy = motionEnergy
         self.coarseDirection = coarseDirection
+        self.typingPace = typingPace
+        self.recentCharacterBeats = Array(recentCharacterBeats.suffix(3))
     }
 }
 
@@ -144,17 +185,34 @@ public struct ReactionPlan: Equatable, Sendable {
     public let intensity: Double
     public let confidence: Double
     public let source: Source
+    public let tone: ReactionTone
+    public let pacing: ReactionPacing
+    public let flourish: ReactionFlourish
+    public let dialogueID: String?
 
     public enum Source: String, Equatable, Sendable {
         case local
         case jev
     }
 
-    public init(intent: ReactionIntent, intensity: Double, confidence: Double, source: Source) {
+    public init(
+        intent: ReactionIntent,
+        intensity: Double,
+        confidence: Double,
+        source: Source,
+        tone: ReactionTone = .playful,
+        pacing: ReactionPacing = .sustain,
+        flourish: ReactionFlourish = .none,
+        dialogueID: String? = nil
+    ) {
         self.intent = intent
         self.intensity = min(max(intensity, 0), 1)
         self.confidence = min(max(confidence, 0), 1)
         self.source = source
+        self.tone = tone
+        self.pacing = pacing
+        self.flourish = flourish
+        self.dialogueID = dialogueID
     }
 }
 

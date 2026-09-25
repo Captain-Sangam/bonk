@@ -11,15 +11,28 @@ public struct BonkCharacterView: View {
     public var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
             let elapsed = max(0, timeline.date.timeIntervalSinceReferenceDate - presentation.reactionStartedAt)
-            if let sprite = BonkFoxSpriteAtlas.shared.sprite(for: presentation.state) {
-                BonkFoxSpriteDrawing(
-                    sprite: sprite,
-                    presentation: presentation,
-                    elapsed: elapsed
-                )
-            } else {
-                BonkCatDrawing(presentation: presentation, elapsed: elapsed)
+            let typingScale = presentation.typingScale(at: timeline.date.timeIntervalSinceReferenceDate)
+            let poseScale = presentation.flourish == .pose
+                ? 1 + (sin(min(elapsed / 0.5, 1) * .pi) * 0.04)
+                : 1
+
+            ZStack {
+                if let sprite = BonkFoxSpriteAtlas.shared.sprite(for: presentation.state) {
+                    BonkFoxSpriteDrawing(
+                        sprite: sprite,
+                        presentation: presentation,
+                        elapsed: elapsed
+                    )
+                } else {
+                    BonkCatDrawing(presentation: presentation, elapsed: elapsed)
+                }
+
+                if presentation.flourish == .sparkle {
+                    BonkBurstView(color: Color.white, phase: elapsed)
+                        .frame(width: 142, height: 132)
+                }
             }
+            .scaleEffect(CGFloat(typingScale * poseScale), anchor: .bottom)
         }
         .frame(width: 132, height: 146, alignment: .bottom)
         .accessibilityLabel("Bonk fox: \(presentation.state.rawValue)")
@@ -54,34 +67,48 @@ private struct BonkFoxSpriteDrawing: View {
     }
 
     private var bodyRotation: Double {
+        let stateRotation: Double
         switch presentation.state {
         case .tumble:
             let progress = min(elapsed / 0.72, 1)
-            return progress * 360 + (sin(elapsed * 4) * 4)
+            stateRotation = progress * 360 + (sin(elapsed * 4) * 4)
         case .angry:
-            return sin(elapsed * 34) * 2.5
+            stateRotation = sin(elapsed * 34) * 2.5
         case .celebrate:
-            return sin(elapsed * 11) * 6
+            stateRotation = sin(elapsed * 11) * 6
         default:
-            return 0
+            stateRotation = 0
+        }
+
+        switch presentation.flourish {
+        case .shake: return stateRotation + (sin(elapsed * 36) * 4)
+        case .spin: return stateRotation + (min(elapsed / 0.75, 1) * 360)
+        default: return stateRotation
         }
     }
 
     private var bodyOffset: CGSize {
+        let stateOffset: CGSize
         switch presentation.state {
         case .notice:
-            return CGSize(width: 0, height: CGFloat(-sin(min(elapsed / 0.38, 1) * .pi) * 12))
+            stateOffset = CGSize(width: 0, height: CGFloat(-sin(min(elapsed / 0.38, 1) * .pi) * 12))
         case .walk, .stalk:
-            return CGSize(width: 0, height: CGFloat(gait * 2.5))
+            stateOffset = CGSize(width: 0, height: CGFloat(gait * 2.5))
         case .pounce:
-            return CGSize(width: 0, height: CGFloat(-sin(min(elapsed / 0.58, 1) * .pi) * 28))
+            stateOffset = CGSize(width: 0, height: CGFloat(-sin(min(elapsed / 0.58, 1) * .pi) * 28))
         case .angry:
-            return CGSize(width: CGFloat(sin(elapsed * 38) * 3), height: 0)
+            stateOffset = CGSize(width: CGFloat(sin(elapsed * 38) * 3), height: 0)
         case .celebrate:
-            return CGSize(width: 0, height: CGFloat(-abs(sin(elapsed * 7)) * 14))
+            stateOffset = CGSize(width: 0, height: CGFloat(-abs(sin(elapsed * 7)) * 14))
         default:
-            return .zero
+            stateOffset = .zero
         }
+
+        let hop = presentation.flourish == .hop
+            ? CGFloat(-sin(min(elapsed / 0.62, 1) * .pi) * 18)
+            : 0
+        let shake = presentation.flourish == .shake ? CGFloat(sin(elapsed * 36) * 3) : 0
+        return CGSize(width: stateOffset.width + shake, height: stateOffset.height + hop)
     }
 }
 
@@ -482,33 +509,48 @@ private struct BonkCatDrawing: View {
         }
     }
     private var bodyRotation: Double {
+        let stateRotation: Double
         switch presentation.state {
         case .tumble:
             let progress = min(elapsed / 0.72, 1)
-            return progress * 360 + (sin(elapsed * 4) * 4)
+            stateRotation = progress * 360 + (sin(elapsed * 4) * 4)
         case .angry:
-            return sin(elapsed * 34) * 3
+            stateRotation = sin(elapsed * 34) * 3
         case .celebrate:
-            return sin(elapsed * 11) * 7
+            stateRotation = sin(elapsed * 11) * 7
         default:
-            return 0
+            stateRotation = 0
+        }
+
+
+        switch presentation.flourish {
+        case .shake: return stateRotation + (sin(elapsed * 36) * 4)
+        case .spin: return stateRotation + (min(elapsed / 0.75, 1) * 360)
+        default: return stateRotation
         }
     }
     private var bodyOffset: CGSize {
+        let stateOffset: CGSize
         switch presentation.state {
         case .notice:
-            return CGSize(width: 0, height: -sin(min(elapsed / 0.38, 1) * .pi) * 13)
+            stateOffset = CGSize(width: 0, height: -sin(min(elapsed / 0.38, 1) * .pi) * 13)
         case .walk, .stalk:
-            return CGSize(width: 0, height: gait * 2.5)
+            stateOffset = CGSize(width: 0, height: gait * 2.5)
         case .pounce:
-            return CGSize(width: 0, height: -sin(min(elapsed / 0.58, 1) * .pi) * 30)
+            stateOffset = CGSize(width: 0, height: -sin(min(elapsed / 0.58, 1) * .pi) * 30)
         case .angry:
-            return CGSize(width: sin(elapsed * 38) * 3, height: 0)
+            stateOffset = CGSize(width: sin(elapsed * 38) * 3, height: 0)
         case .celebrate:
-            return CGSize(width: 0, height: -abs(sin(elapsed * 7)) * 15)
+            stateOffset = CGSize(width: 0, height: -abs(sin(elapsed * 7)) * 15)
         default:
-            return .zero
+            stateOffset = .zero
         }
+
+        let hop = presentation.flourish == .hop
+            ? CGFloat(-sin(min(elapsed / 0.62, 1) * .pi) * 18)
+            : 0
+        let shake = presentation.flourish == .shake ? CGFloat(sin(elapsed * 36) * 3) : 0
+        return CGSize(width: stateOffset.width + shake, height: stateOffset.height + hop)
     }
 }
 

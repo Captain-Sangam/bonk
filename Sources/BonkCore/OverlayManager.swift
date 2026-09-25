@@ -113,8 +113,15 @@ private struct CharacterOverlayView: View {
     let displayNumber: Int?
     let isPrimaryDisplay: Bool
 
-    private var shouldRender: Bool {
+    private var shouldRenderCharacter: Bool {
         guard let active = characterEngine.presentation.activeDisplayNumber else {
+            return isPrimaryDisplay
+        }
+        return active == displayNumber
+    }
+
+    private var shouldRenderCursor: Bool {
+        guard let active = characterEngine.cursorPresentation.activeDisplayNumber else {
             return isPrimaryDisplay
         }
         return active == displayNumber
@@ -122,49 +129,70 @@ private struct CharacterOverlayView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            if shouldRender {
+            if shouldRenderCharacter || shouldRenderCursor {
                 ZStack {
-                    if let cursor = characterEngine.presentation.cursorPosition {
+                    if shouldRenderCursor, let cursor = characterEngine.cursorPresentation.position {
                         BonkCursorTargetView(presentation: characterEngine.presentation)
                             .position(
                                 x: cursor.x * geometry.size.width,
                                 y: (1 - cursor.y) * geometry.size.height
                             )
+                            .transaction { transaction in
+                                transaction.animation = nil
+                            }
                     }
 
-                    VStack(spacing: 1) {
-                        if let message = characterEngine.presentation.message {
-                            Text(message)
-                                .font(.system(size: 15, weight: .bold, design: .rounded))
-                                .foregroundStyle(Color.white)
-                                .padding(.horizontal, 13)
-                                .padding(.vertical, 8)
-                                .background(
-                                    Color(red: 0.13, green: 0.10, blue: 0.22).opacity(0.94),
-                                    in: RoundedRectangle(cornerRadius: 13, style: .continuous)
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 13, style: .continuous)
-                                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                                )
-                                .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
-                                .transition(.scale.combined(with: .opacity))
+                    if shouldRenderCharacter {
+                        VStack(spacing: 1) {
+                            if let message = characterEngine.presentation.message {
+                                Text(message)
+                                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                                    .foregroundStyle(Color.white)
+                                    .padding(.horizontal, 13)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        bubbleColor.opacity(0.94),
+                                        in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                                    )
+                                    .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
+                                    .transition(.scale.combined(with: .opacity))
+                                    .zIndex(2)
+                            }
+
+                            BonkCharacterView(presentation: characterEngine.presentation)
+                                .shadow(color: .black.opacity(0.25), radius: 5, y: 4)
+                                .zIndex(1)
                         }
-
-                        BonkCharacterView(presentation: characterEngine.presentation)
-                            .shadow(color: .black.opacity(0.25), radius: 5, y: 4)
+                        .position(
+                            x: characterEngine.presentation.position.x * geometry.size.width,
+                            y: (1 - characterEngine.presentation.position.y) * geometry.size.height
+                        )
+                        .animation(
+                            .interactiveSpring(response: 0.24, dampingFraction: 0.72),
+                            value: characterEngine.presentation
+                        )
                     }
-                    .position(
-                        x: characterEngine.presentation.position.x * geometry.size.width,
-                        y: (1 - characterEngine.presentation.position.y) * geometry.size.height
-                    )
                 }
-                .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.72), value: characterEngine.presentation)
             }
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
         .background(Color.clear)
+    }
+
+    private var bubbleColor: Color {
+        switch characterEngine.presentation.tone {
+        case .playful: return Color(red: 0.13, green: 0.10, blue: 0.22)
+        case .smug: return Color(red: 0.09, green: 0.27, blue: 0.31)
+        case .grumpy: return Color(red: 0.35, green: 0.12, blue: 0.10)
+        case .encouraging: return Color(red: 0.11, green: 0.31, blue: 0.21)
+        case .dramatic: return Color(red: 0.31, green: 0.08, blue: 0.24)
+        case .sleepy: return Color(red: 0.16, green: 0.17, blue: 0.31)
+        }
     }
 
 }

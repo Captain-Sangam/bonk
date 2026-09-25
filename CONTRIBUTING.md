@@ -46,6 +46,9 @@ Changes must preserve these rules:
 - Only the local double-Escape gesture starts owner authentication while guarded.
 - Jev and network access never control interception, authentication, or cleanup.
 - Typed content, raw key codes, exact cursor paths, screen contents, and application context never leave the Mac.
+- Exact virtual-cursor updates remain local, immediate, and independent of Jev.
+- Jev requests remain quiet-period debounced, cancellable, session-scoped, confidence-gated, and allowlisted.
+- Dialogue shown by the app comes from the curated catalogue; Jev selects bounded IDs and never generates arbitrary text.
 - Authentication remains owned by macOS `LocalAuthentication`.
 - Every connected display remains protected for the full guarded session.
 
@@ -58,3 +61,5 @@ Runtime character changes should update the gallery when relevant:
 ```sh
 make screenshots
 ```
+
+Dialogue contributions belong in `DialogueCatalog.swift`. Keep every line short enough for the overlay, preserve a clear double-Escape instruction for unlock hints, and add variety without insults, sensitive inferences, or references to typed content. Changes to the Jev question contract should update `docs/reaction-engine.md` and include request/response validation tests.
