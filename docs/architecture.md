@@ -1,6 +1,6 @@
 # Architecture
 
-Bonk is a native SwiftUI and AppKit menu-bar application. Jev is the core creative director for the character engine, while the safety-critical path remains local and deterministic: input interception, owner authentication, cleanup, instant cursor presentation, and fallback reactions do not depend on network access.
+Bonk is a native SwiftUI and AppKit menu-bar application. Jev is an optional creative director for the character engine, while the safety-critical path remains local and deterministic: input interception, owner authentication, cleanup, instant cursor presentation, and fallback reactions do not depend on network access.
 
 ## Component map
 
@@ -66,4 +66,4 @@ The reaction snapshot receives only coarse direction, motion energy, typing pace
 
 ## Packaging
 
-Swift Package Manager builds the core library, menu-bar executable, checks, tests, and screenshot renderer. [`Scripts/build-app.sh`](../Scripts/build-app.sh) assembles an ad-hoc signed macOS application in `dist/Bonk.app` and embeds the BonkCore resource bundle under `Contents/Resources`.
+Swift Package Manager builds the core library, menu-bar executable, checks, tests, and screenshot renderer. [`Scripts/build-app.sh`](../Scripts/build-app.sh) assembles an ad-hoc signed macOS application in `dist/Bonk.app` and embeds the BonkCore resource bundle under `Contents/Resources`. See [Packaging and installation](packaging.md) for toolchain requirements, verification, installation destinations, and signing details.
