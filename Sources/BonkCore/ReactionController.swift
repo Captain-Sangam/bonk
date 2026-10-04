@@ -11,7 +11,26 @@ public final class ReactionController: ReactionControlling {
     private let providerFactory: ProviderFactory
     private let localProvider = LocalReactionProvider()
     public let director: JevDirectorMonitor
-    private var aggregator = InteractionAggregator()
+    private var aggregator: InteractionAggregator
+    private let displayInterval: TimeInterval
+    private let restInterval: TimeInterval
+    private var isSessionActive = false
+    private var isResting = false
+    private var lastStateChangeAt = Date.distantPast
+    private var lastMessageChangeAt = Date.distantPast
+    private var pendingMessage: PendingMessage?
+    private var messageTask: Task<Void, Never>?
+    private var messageTaskID: UUID?
+    private var restTask: Task<Void, Never>?
+    private var restTaskID: UUID?
+
+    private enum PendingMessage {
+        case reaction(ReactionPlan, localFallback: ReactionPlan? = nil)
+        case authentication
+    }
+
+    private var messageDeadline: Date { lastMessageChangeAt.addingTimeInterval(displayInterval) }
+    private var changeDeadline: Date { lastStateChangeAt.addingTimeInterval(displayInterval) }
     private var sessionID = UUID()
     private var eventSequence = 0
     private var pendingTask: Task<Void, Never>?
@@ -21,19 +40,23 @@ public final class ReactionController: ReactionControlling {
     private var latestSnapshot: ReactionSnapshot?
     private var latestLocation: CGPoint?
     private var recentCharacterBeats: [String] = []
-    private var lastPresentedAt = Date.distantPast
-    private var lastPresentedIntent: ReactionIntent?
 
     public init(
         characterEngine: CharacterEngine,
         director: JevDirectorMonitor,
         quietPeriodNanoseconds: UInt64 = 2_000_000_000,
+        displayInterval: TimeInterval = 4,
+        restInterval: TimeInterval = 20,
+        gestureGap: TimeInterval = 0.75,
         providerFactory: @escaping ProviderFactory = { JevReactionProvider(apiKey: $0) },
         configuration: @escaping () -> Configuration
     ) {
         self.characterEngine = characterEngine
         self.director = director
         self.quietPeriodNanoseconds = quietPeriodNanoseconds
+        self.displayInterval = max(displayInterval, 0)
+        self.restInterval = max(restInterval, 0)
+        self.aggregator = InteractionAggregator(gestureGap: gestureGap)
         self.providerFactory = providerFactory
         self.configuration = configuration
     }
@@ -50,18 +73,18 @@ public final class ReactionController: ReactionControlling {
     }
 
     public func beginSession() {
-        pendingTask?.cancel()
-        pendingTask = nil
-        pendingTaskID = nil
-        jevRequestInFlight = false
-        quietDeadline = nil
+        cancelJevEvaluation()
+        cancelPendingMessage()
+        cancelRest()
+        isSessionActive = true
+        isResting = false
         latestSnapshot = nil
         latestLocation = nil
         recentCharacterBeats.removeAll(keepingCapacity: true)
         sessionID = UUID()
         eventSequence = 0
-        lastPresentedAt = .distantPast
-        lastPresentedIntent = nil
+        lastStateChangeAt = .distantPast
+        lastMessageChangeAt = .distantPast
         aggregator.reset()
         characterEngine.reset()
         let currentConfiguration = configuration()
@@ -69,11 +92,18 @@ public final class ReactionController: ReactionControlling {
             enabled: currentConfiguration.enabled,
             hasAPIKey: currentConfiguration.apiKey != nil
         )
+        scheduleRest(at: Date().addingTimeInterval(restInterval))
     }
 
     public func handle(_ signal: InteractionSignal) {
+        guard isSessionActive else { return }
         eventSequence += 1
-        characterEngine.observe(signal)
+        let waking = isResting
+        isResting = false
+        characterEngine.observe(
+            signal,
+            holdingPosition: characterEngine.presentation.message != nil && signal.timestamp < messageDeadline
+        )
         let context = characterEngine.context(for: signal.globalLocation)
         let snapshot = aggregator.record(
             signal,
@@ -84,69 +114,196 @@ public final class ReactionController: ReactionControlling {
         )
 
         let localPlan = localProvider.immediateReaction(for: snapshot)
-        let isNewIntent = localPlan.intent != lastPresentedIntent
-        let presentationInterval = signal.timestamp.timeIntervalSince(lastPresentedAt)
         let shouldPresent: Bool
         switch signal.kind {
-        case .click, .rapidClick, .shortcutAttempt:
+        case .click, .rapidClick, .shortcutAttempt, .keyboardActivity:
             shouldPresent = true
-        case .mouseMovement, .keyboardActivity, .scroll:
-            shouldPresent = isNewIntent || presentationInterval >= 0.65
+        case .mouseMovement, .scroll:
+            shouldPresent = waking || (signal.timestamp >= messageDeadline && signal.timestamp >= changeDeadline)
         }
 
         if shouldPresent {
-            lastPresentedAt = signal.timestamp
-            lastPresentedIntent = localPlan.intent
-            characterEngine.apply(localPlan, near: signal.globalLocation)
+            let preservingMessage = signal.timestamp < messageDeadline
+            lastStateChangeAt = signal.timestamp
+            characterEngine.apply(localPlan, near: signal.globalLocation, preservingMessage: preservingMessage)
             remember(localPlan)
+            if preservingMessage {
+                deferMessage(.reaction(localPlan))
+            } else {
+                cancelPendingMessage()
+                lastMessageChangeAt = signal.timestamp
+            }
         }
+        scheduleRest(at: signal.timestamp.addingTimeInterval(restInterval))
 
         let currentConfiguration = configuration()
         guard currentConfiguration.enabled, let apiKey = currentConfiguration.apiKey else {
-            pendingTask?.cancel()
-            pendingTask = nil
-            pendingTaskID = nil
-            jevRequestInFlight = false
-            quietDeadline = nil
+            cancelJevEvaluation()
+            discardQueuedJevMessage()
             director.markLocalOnly()
             return
         }
 
+        // Any newer signal invalidates a queued cloud decision, even if movement
+        // was gated. A local candidate remains useful until it can be read.
+        discardQueuedJevMessage()
         latestSnapshot = snapshotForJev(from: snapshot)
         latestLocation = signal.globalLocation
         quietDeadline = Date().addingTimeInterval(Double(quietPeriodNanoseconds) / 1_000_000_000)
         director.markWaiting()
 
         if jevRequestInFlight {
-            pendingTask?.cancel()
-            pendingTask = nil
-            pendingTaskID = nil
-            jevRequestInFlight = false
+            cancelJevEvaluation()
+            quietDeadline = Date().addingTimeInterval(Double(quietPeriodNanoseconds) / 1_000_000_000)
         }
         scheduleJevEvaluation(for: sessionID, apiKey: apiKey)
     }
 
     public func pointToAuthentication() {
-        pendingTask?.cancel()
-        pendingTask = nil
-        pendingTaskID = nil
-        jevRequestInFlight = false
-        quietDeadline = nil
+        guard isSessionActive else { return }
+        eventSequence += 1
+        cancelJevEvaluation()
+        cancelPendingMessage()
         director.markLocalOnly()
-        characterEngine.pointToAuthentication()
+        isResting = false
+        let now = Date()
+        let preservingMessage = now < messageDeadline
+        characterEngine.pointToAuthentication(preservingMessage: preservingMessage)
+        lastStateChangeAt = now
+        if preservingMessage {
+            deferMessage(.authentication)
+        } else {
+            lastMessageChangeAt = now
+        }
+        // Failed authentication resumes interception without sending us a signal.
+        // Keep the rest timer alive throughout that path.
+        scheduleRest(at: now.addingTimeInterval(restInterval))
     }
 
     public func endSession() {
-        pendingTask?.cancel()
-        pendingTask = nil
-        pendingTaskID = nil
-        jevRequestInFlight = false
-        quietDeadline = nil
+        isSessionActive = false
+        cancelJevEvaluation()
+        cancelPendingMessage()
+        cancelRest()
         latestSnapshot = nil
         latestLocation = nil
         recentCharacterBeats.removeAll(keepingCapacity: true)
         sessionID = UUID()
         director.markLocalOnly()
+    }
+
+    private func deferMessage(_ candidate: PendingMessage) {
+        pendingMessage = candidate
+        guard messageTask == nil else { return }
+        let taskID = UUID()
+        messageTaskID = taskID
+        messageTask = Task { [weak self] in
+            do {
+                while let self, self.messageTaskID == taskID, self.isSessionActive, !self.isResting {
+                    let remaining = self.messageDeadline.timeIntervalSinceNow
+                    if remaining > 0 {
+                        try await Task.sleep(nanoseconds: UInt64(min(remaining, 60) * 1_000_000_000))
+                        try Task.checkCancellation()
+                        continue
+                    }
+                    self.publishPendingMessage(at: Date())
+                    return
+                }
+            } catch {
+                // Cancellation discards superseded dialogue without publishing it.
+            }
+        }
+    }
+
+    private func publishPendingMessage(at date: Date) {
+        guard let candidate = pendingMessage else { return }
+        if case let .reaction(plan, _) = candidate, plan.source == .jev {
+            let currentConfiguration = configuration()
+            if !currentConfiguration.enabled || currentConfiguration.apiKey == nil {
+                discardQueuedJevMessage()
+                director.markLocalOnly()
+                publishPendingMessage(at: date)
+                return
+            }
+        }
+        cancelPendingMessage()
+        switch candidate {
+        case let .reaction(plan, _):
+            characterEngine.publishMessage(for: plan)
+            if plan.source == .jev {
+                remember(plan)
+                director.markApplied(plan)
+            }
+        case .authentication:
+            characterEngine.publishAuthenticationMessage()
+        }
+        lastMessageChangeAt = date
+    }
+
+    private func discardQueuedJevMessage() {
+        guard case let .reaction(plan, fallback) = pendingMessage, plan.source == .jev else { return }
+        cancelPendingMessage()
+        if let fallback {
+            deferMessage(.reaction(fallback))
+        }
+    }
+
+    private func scheduleRest(at deadline: Date) {
+        cancelRest()
+        let taskID = UUID()
+        restTaskID = taskID
+        restTask = Task { [weak self] in
+            do {
+                while let self, self.restTaskID == taskID, self.isSessionActive {
+                    let remaining = max(deadline, self.messageDeadline).timeIntervalSinceNow
+                    if remaining > 0 {
+                        try await Task.sleep(nanoseconds: UInt64(min(remaining, 60) * 1_000_000_000))
+                        try Task.checkCancellation()
+                        continue
+                    }
+                    if self.pendingMessage != nil {
+                        // A due message wins a tie with rest and receives its own
+                        // full reading window, regardless of timer scheduling order.
+                        self.publishPendingMessage(at: Date())
+                        continue
+                    }
+                    self.cancelRest()
+                    self.cancelPendingMessage()
+                    self.cancelJevEvaluation()
+                    self.latestSnapshot = nil
+                    self.latestLocation = nil
+                    self.aggregator.clearRecentActivity()
+                    self.recentCharacterBeats.removeAll(keepingCapacity: true)
+                    self.isResting = true
+                    self.characterEngine.rest()
+                    self.director.markLocalOnly()
+                    return
+                }
+            } catch {
+                // A newer input or session owns the replacement timer.
+            }
+        }
+    }
+
+    private func cancelPendingMessage() {
+        messageTask?.cancel()
+        messageTask = nil
+        messageTaskID = nil
+        pendingMessage = nil
+    }
+
+    private func cancelRest() {
+        restTask?.cancel()
+        restTask = nil
+        restTaskID = nil
+    }
+
+    private func cancelJevEvaluation() {
+        pendingTask?.cancel()
+        pendingTask = nil
+        pendingTaskID = nil
+        jevRequestInFlight = false
+        quietDeadline = nil
     }
 
     private func scheduleJevEvaluation(for session: UUID, apiKey: String) {
@@ -190,15 +347,38 @@ public final class ReactionController: ReactionControlling {
                     try Task.checkCancellation()
 
                     guard self.sessionID == session,
-                          self.eventSequence == requestSequence
+                          self.eventSequence == requestSequence,
+                          self.pendingTaskID == taskID,
+                          self.isSessionActive,
+                          !self.isResting,
+                          self.configuration().enabled,
+                          self.configuration().apiKey == apiKey
                     else {
                         self.finishTask(taskID)
                         return
                     }
 
-                    self.characterEngine.apply(plan, near: location)
-                    self.remember(plan)
-                    self.director.markApplied(plan)
+                    let now = Date()
+                    if now < self.messageDeadline {
+                        let localFallback: ReactionPlan?
+                        if case let .reaction(pending, fallback) = self.pendingMessage {
+                            localFallback = pending.source == .local ? pending : fallback
+                        } else {
+                            localFallback = nil
+                        }
+                        self.deferMessage(.reaction(plan, localFallback: localFallback))
+                    } else {
+                        self.cancelPendingMessage()
+                        if now >= self.changeDeadline {
+                            self.characterEngine.apply(plan, near: location)
+                            self.lastStateChangeAt = now
+                        } else {
+                            self.characterEngine.publishMessage(for: plan)
+                        }
+                        self.lastMessageChangeAt = now
+                        self.remember(plan)
+                        self.director.markApplied(plan)
+                    }
                     self.finishTask(taskID)
                     return
                 }
@@ -247,7 +427,8 @@ public final class ReactionController: ReactionControlling {
             motionEnergy: snapshot.motionEnergy,
             coarseDirection: snapshot.coarseDirection,
             typingPace: snapshot.typingPace,
-            recentCharacterBeats: recentCharacterBeats
+            recentCharacterBeats: recentCharacterBeats,
+            movementGestureDuration: snapshot.movementGestureDuration
         )
     }
 }

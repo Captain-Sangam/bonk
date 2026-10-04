@@ -150,6 +150,14 @@ public struct ReactionSnapshot: Codable, Equatable, Sendable {
     public let coarseDirection: CoarseDirection
     public let typingPace: TypingPace
     public let recentCharacterBeats: [String]
+    // Local gesture context; deliberately excluded from the Jev contract.
+    public var movementGestureDuration: TimeInterval = 0
+
+    private enum CodingKeys: String, CodingKey {
+        case interaction, recentEventCounts, interactionRate, sessionDuration, escalationLevel
+        case currentCharacterState, displayIndex, cursorRegion, motionEnergy, coarseDirection
+        case typingPace, recentCharacterBeats
+    }
 
     public init(
         interaction: InteractionKind,
@@ -163,7 +171,8 @@ public struct ReactionSnapshot: Codable, Equatable, Sendable {
         motionEnergy: MotionEnergy = .still,
         coarseDirection: CoarseDirection = .stationary,
         typingPace: TypingPace = .none,
-        recentCharacterBeats: [String] = []
+        recentCharacterBeats: [String] = [],
+        movementGestureDuration: TimeInterval = 0
     ) {
         self.interaction = interaction
         self.recentEventCounts = recentEventCounts
@@ -177,6 +186,7 @@ public struct ReactionSnapshot: Codable, Equatable, Sendable {
         self.coarseDirection = coarseDirection
         self.typingPace = typingPace
         self.recentCharacterBeats = Array(recentCharacterBeats.suffix(3))
+        self.movementGestureDuration = max(movementGestureDuration, 0)
     }
 }
 

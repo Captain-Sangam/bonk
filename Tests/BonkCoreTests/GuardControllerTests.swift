@@ -102,6 +102,44 @@ final class GuardControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testRealReactionPacingAndRestSurviveAuthenticationFailure() async throws {
+        let character = CharacterEngine { false }
+        let reactions = ReactionController(characterEngine: character, director: JevDirectorMonitor(),
+            displayInterval: 0.06, restInterval: 0.1, configuration: { (false, nil) })
+        let input = FakeInputInterceptor()
+        let authentication = FakeAuthenticationManager()
+        authentication.error = BonkError.authenticationFailed("Cancelled")
+        let defaults = UserDefaults(suiteName: "BonkAuthResume.\(UUID())")!
+        let guardController = GuardController(settings: SettingsStore(defaults: defaults), inputInterceptor: input,
+            awakeManager: FakeAwakeManager(), overlayManager: FakeOverlayManager(),
+            authenticationManager: authentication, reactionController: reactions, characterEngine: character)
+        guardController.activate()
+        defer { guardController.shutdown() }
+        input.onAuthenticationGesture?()
+        for _ in 0..<100 {
+            if authentication.callCount == 1 && guardController.status == .armed { break }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(authentication.callCount, 1)
+        XCTAssertEqual(guardController.status, .armed)
+        XCTAssertEqual(input.startCount, 2)
+        XCTAssertTrue(input.isRunning)
+        XCTAssertEqual(character.presentation.state, .sleeping)
+        XCTAssertNil(character.presentation.message)
+        input.onSignal?(InteractionSignal(kind: .mouseMovement))
+        await Task.yield()
+        XCTAssertEqual(character.presentation.state, .notice)
+        let text = character.presentation.message
+        input.onSignal?(InteractionSignal(kind: .keyboardActivity))
+        await Task.yield()
+        XCTAssertEqual(character.presentation.state, .annoyed)
+        XCTAssertEqual(character.presentation.message, text)
+        try await Task.sleep(nanoseconds: 150_000_000)
+        XCTAssertEqual(character.presentation.state, .sleeping)
+        XCTAssertNil(character.presentation.message)
+    }
+
+    @MainActor
     private func makeFixture() -> Fixture {
         let suiteName = "BonkCoreTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -192,10 +230,12 @@ private final class FakeOverlayManager: OverlayManaging {
 private final class FakeAuthenticationManager: OwnerAuthenticating {
     private(set) var callCount = 0
     var onAuthenticate: (() -> Void)?
+    var error: Error?
 
     func authenticateOwner() async throws {
         callCount += 1
         onAuthenticate?()
+        if let error { throw error }
     }
 }
 

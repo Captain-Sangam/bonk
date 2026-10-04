@@ -149,7 +149,7 @@ public final class CharacterEngine: ObservableObject, CharacterPresenting {
         return (match.offset, Self.region(for: point, in: match.element.frame))
     }
 
-    public func observe(_ signal: InteractionSignal) {
+    public func observe(_ signal: InteractionSignal, holdingPosition: Bool = false) {
         var next = presentation
         if (signal.kind == .keyboardActivity || signal.kind == .shortcutAttempt), !signal.isAutoRepeat {
             let envelope = typingScaleTracker.record(signal)
@@ -166,7 +166,9 @@ public final class CharacterEngine: ObservableObject, CharacterPresenting {
 
         let displayNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? Int
         cursorPresentation = CursorPresentation(position: normalized, activeDisplayNumber: displayNumber)
-        next.activeDisplayNumber = displayNumber
+        if !holdingPosition {
+            next.activeDisplayNumber = displayNumber
+        }
         next.inputDeltaX = min(max(signal.deltaX / 40, -1), 1)
         next.inputDeltaY = min(max(signal.deltaY / 40, -1), 1)
         next.motionSpeed = min(max(signal.magnitude / 1_200, 0), 1)
@@ -181,7 +183,7 @@ public final class CharacterEngine: ObservableObject, CharacterPresenting {
             next.facing = horizontalDistance < 0 ? -1 : 1
         }
 
-        if signal.kind == .mouseMovement {
+        if signal.kind == .mouseMovement, !holdingPosition {
             let trail = NormalizedPoint(
                 x: normalized.x - (next.facing * 0.06),
                 y: normalized.y - 0.07
@@ -193,12 +195,14 @@ public final class CharacterEngine: ObservableObject, CharacterPresenting {
         presentation = next
     }
 
-    public func apply(_ plan: ReactionPlan, near point: CGPoint?) {
+    public func apply(_ plan: ReactionPlan, near point: CGPoint?, preservingMessage: Bool = false) {
         var next = presentation
-        reactionSequence += 1
+        reactionSequence = max(reactionSequence, next.variant) + 1
         next.state = state(for: plan.intent)
         next.variant = reactionSequence
-        next.message = message(for: plan)
+        if !preservingMessage {
+            next.message = publishableMessage(for: plan)
+        }
         next.tone = plan.tone
         next.pacing = plan.pacing
         next.flourish = plan.flourish
@@ -255,9 +259,29 @@ public final class CharacterEngine: ObservableObject, CharacterPresenting {
         playSound(for: plan.intent)
     }
 
-    public func pointToAuthentication() {
+    public func publishMessage(for plan: ReactionPlan) {
+        presentation.message = publishableMessage(for: plan)
+    }
+
+    public func rest() {
+        typingScaleTracker.reset()
+        var next = CharacterPresentation(
+            position: presentation.position,
+            activeDisplayNumber: presentation.activeDisplayNumber,
+            facing: presentation.facing,
+            variant: presentation.variant + 1
+        )
+        next.state = .sleeping
+        next.message = nil
+        next.tone = .sleepy
+        presentation = next
+    }
+
+    public func pointToAuthentication(preservingMessage: Bool = false) {
         presentation.state = .point
-        presentation.message = "Double Esc captured. Use Touch ID."
+        if !preservingMessage {
+            publishAuthenticationMessage()
+        }
         presentation.position = .touchID
         presentation.facing = 1
         presentation.intensity = 0.5
@@ -266,6 +290,10 @@ public final class CharacterEngine: ObservableObject, CharacterPresenting {
         presentation.flourish = .pose
         presentation.variant += 1
         presentation.reactionStartedAt = Date.timeIntervalSinceReferenceDate
+    }
+
+    public func publishAuthenticationMessage() {
+        presentation.message = "Double Esc captured. Use Touch ID."
     }
 
     public func celebrate() {
@@ -301,7 +329,8 @@ public final class CharacterEngine: ObservableObject, CharacterPresenting {
         }
     }
 
-    private func message(for plan: ReactionPlan) -> String? {
+    // Select and remember dialogue only when it actually becomes visible.
+    private func publishableMessage(for plan: ReactionPlan) -> String? {
         let catalog = DialogueCatalog.shared
         let selected: DialogueLine?
 

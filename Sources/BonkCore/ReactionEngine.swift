@@ -8,13 +8,26 @@ public struct InteractionAggregator: Sendable {
     private var sessionStartedAt = Date()
     private var events: [(date: Date, kind: InteractionKind)] = []
     private var typingEvents: [Date] = []
+    private let gestureGap: TimeInterval
+    private var movementGestures: [Date] = []
+    private var movementStartedAt: Date?
+    private var lastMovementAt: Date?
 
-    public init() {}
+    public init(gestureGap: TimeInterval = 0.75) {
+        self.gestureGap = max(gestureGap, 0)
+    }
 
     public mutating func reset(at date: Date = Date()) {
         sessionStartedAt = date
+        clearRecentActivity()
+    }
+
+    mutating func clearRecentActivity() {
         events.removeAll(keepingCapacity: true)
         typingEvents.removeAll(keepingCapacity: true)
+        movementGestures.removeAll(keepingCapacity: true)
+        movementStartedAt = nil
+        lastMovementAt = nil
     }
 
     public mutating func record(
@@ -24,11 +37,22 @@ public struct InteractionAggregator: Sendable {
         cursorRegion: CoarseCursorRegion,
         recentCharacterBeats: [String] = []
     ) -> ReactionSnapshot {
-        if !signal.isAutoRepeat {
+        if signal.kind == .mouseMovement {
+            if let lastMovementAt,
+               signal.timestamp.timeIntervalSince(lastMovementAt) < gestureGap,
+               !movementGestures.isEmpty {
+                movementGestures[movementGestures.count - 1] = signal.timestamp
+            } else {
+                movementStartedAt = signal.timestamp
+                movementGestures.append(signal.timestamp)
+            }
+            lastMovementAt = signal.timestamp
+        } else if !signal.isAutoRepeat {
             events.append((signal.timestamp, signal.kind))
         }
         let cutoff = signal.timestamp.addingTimeInterval(-5)
         events.removeAll { $0.date < cutoff }
+        movementGestures.removeAll { $0 < cutoff }
 
         if (signal.kind == .keyboardActivity || signal.kind == .shortcutAttempt), !signal.isAutoRepeat {
             typingEvents.append(signal.timestamp)
@@ -40,9 +64,13 @@ public struct InteractionAggregator: Sendable {
         for event in events {
             counts[event.kind.rawValue, default: 0] += 1
         }
+        if !movementGestures.isEmpty {
+            counts[InteractionKind.mouseMovement.rawValue] = movementGestures.count
+        }
+        let activityCount = events.count + min(movementGestures.count, 2)
 
         let rate: InteractionRate
-        switch events.count {
+        switch activityCount {
         case 0...2: rate = .low
         case 3...7: rate = .medium
         default: rate = .high
@@ -58,7 +86,7 @@ public struct InteractionAggregator: Sendable {
         }
 
         let escalation: Int
-        switch events.count {
+        switch activityCount {
         case 0: escalation = 0
         case 1: escalation = signal.kind == .mouseMovement ? 1 : 2
         case 2...3: escalation = 2
@@ -79,7 +107,9 @@ public struct InteractionAggregator: Sendable {
             motionEnergy: Self.motionEnergy(for: signal),
             coarseDirection: Self.coarseDirection(for: signal),
             typingPace: Self.typingPace(for: typingEvents.count),
-            recentCharacterBeats: recentCharacterBeats
+            recentCharacterBeats: recentCharacterBeats,
+            movementGestureDuration: signal.kind == .mouseMovement
+                ? signal.timestamp.timeIntervalSince(movementStartedAt ?? signal.timestamp) : 0
         )
     }
 
@@ -126,7 +156,13 @@ public struct InteractionAggregator: Sendable {
 }
 
 public struct LocalReactionProvider: ReactionProvider {
-    public init() {}
+    private let sustainedGestureInterval: TimeInterval
+    private let noticeGestureInterval: TimeInterval
+
+    public init(sustainedGestureInterval: TimeInterval = 2, noticeGestureInterval: TimeInterval = 0.35) {
+        self.sustainedGestureInterval = max(sustainedGestureInterval, 0)
+        self.noticeGestureInterval = max(noticeGestureInterval, 0)
+    }
 
     public func reaction(for snapshot: ReactionSnapshot) async throws -> ReactionPlan {
         immediateReaction(for: snapshot)
@@ -134,12 +170,19 @@ public struct LocalReactionProvider: ReactionProvider {
 
     public func immediateReaction(for snapshot: ReactionSnapshot) -> ReactionPlan {
         let intent = intent(for: snapshot)
+        var tone = localTone(for: snapshot)
+        if let previous = snapshot.recentCharacterBeats.last?.split(separator: "|"),
+           previous.count >= 2,
+           previous[0] == intent.rawValue,
+           previous[1] == tone.rawValue {
+            tone = tone == .playful ? .smug : .playful
+        }
         return ReactionPlan(
             intent: intent,
             intensity: Double(snapshot.escalationLevel) / 5,
             confidence: 1,
             source: .local,
-            tone: localTone(for: snapshot),
+            tone: tone,
             pacing: snapshot.escalationLevel >= 4 ? .escalate : .sustain,
             flourish: localFlourish(for: intent)
         )
@@ -173,9 +216,9 @@ public struct LocalReactionProvider: ReactionProvider {
         switch snapshot.interaction {
         case .mouseMovement:
             let movementCount = snapshot.recentEventCounts[InteractionKind.mouseMovement.rawValue, default: 0]
-            if movementCount <= 1 { return .notice }
             if snapshot.motionEnergy == .frantic { return .pounce }
-            if movementCount >= 5 { return .stalkCursor }
+            if movementCount >= 2 || snapshot.movementGestureDuration >= sustainedGestureInterval { return .stalkCursor }
+            if snapshot.movementGestureDuration < noticeGestureInterval { return .notice }
             return .followCursor
         case .click:
             let clickCount = snapshot.recentEventCounts[InteractionKind.click.rawValue, default: 0]
@@ -184,9 +227,11 @@ public struct LocalReactionProvider: ReactionProvider {
         case .rapidClick:
             return snapshot.escalationLevel >= 4 ? .angry : .repeatBonk
         case .keyboardActivity:
-            let keyCount = snapshot.recentEventCounts[InteractionKind.keyboardActivity.rawValue, default: 0]
-            if snapshot.escalationLevel >= 4 { return .angry }
-            return keyCount >= 2 ? .coverEars : .annoyed
+            switch snapshot.typingPace {
+            case .none, .slow: return .annoyed
+            case .steady: return .coverEars
+            case .fast, .frantic: return .angry
+            }
         case .scroll:
             return snapshot.motionEnergy == .quick || snapshot.motionEnergy == .frantic ? .tumble : .cling
         case .shortcutAttempt:

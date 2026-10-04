@@ -39,6 +39,7 @@ private struct BonkChecks {
     static func main() async {
         do {
             try await runChecks()
+            try await PolishChecks.run()
             print("Bonk checks passed")
         } catch {
             fputs("Bonk checks failed: \(error)\n", stderr)
