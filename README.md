@@ -4,9 +4,9 @@
 
 <h1 align="center">Bonk</h1>
 
-<p align="center"><strong>A Jev-powered character reaction engine wrapped around a playful macOS input guard.</strong></p>
+<p align="center"><strong>A playful macOS input guard with an on-device fox personality.</strong></p>
 
-Keep your desktop visible and your Mac awake while a tiny fox blocks unwanted keyboard, mouse, and trackpad input. Jev is the character's core creative decision engine: it turns privacy-safe interaction signals into the fox's next reaction, mood, pacing, flourish, intensity, and line.
+Keep your desktop visible and your Mac awake while a tiny fox blocks unwanted keyboard, mouse, and trackpad input. The fox chooses reactions locally from movement gestures, typing pace, and recent interactions. Jev adds optional creative direction.
 
 ![Bonk guarding a visible desktop](docs/images/guard-mode-preview.png)
 
@@ -22,12 +22,14 @@ Bonk is useful for dashboards, demos, long-running tasks, keyboard cleaning, cur
 - Transparent protection across every connected display
 - Instant 120 Hz local virtual-cursor tracking, independent of network decisions
 - Typing-speed energy that grows the fox up to a safe visual limit, then counts down smoothly
-- Jev-directed reaction, tone, pacing, flourish, intensity, and dialogue selection
+- On-device responses shaped by movement gestures and typing pace
+- Four-second reading windows and a resting fox after 20 seconds of inactivity
+- Optional Jev direction for reaction, tone, pacing, flourish, intensity, and dialogue selection
 - More than 600 curated dialogue options with context filtering and anti-repetition
 - Double Escape as the only guarded-input path to macOS owner authentication
 - Two-second Jev quiet-period scheduling to avoid jitter during input bursts
 - Strict schema, allowlist, confidence, freshness, and bounds validation around every Jev result
-- Complete deterministic offline reaction fallback
+- Complete deterministic offline reaction engine
 - Keychain storage for the optional Jev API key
 - Reproducible character assets and screenshot tooling
 
@@ -35,7 +37,7 @@ Bonk is useful for dashboards, demos, long-running tasks, keyboard cleaning, cur
 
 ![Bonk's sixteen reaction states](docs/images/reaction-gallery.png)
 
-Mouse movement, clicks, scrolling, typing, and shortcut attempts produce different poses and motion. The virtual cursor follows movement immediately while the fox keeps its animated trailing motion. Faster typing charges the fox from `1.0×` up to `1.65×`; after typing stops, it eases back to normal over four seconds.
+Mouse movement, clicks, scrolling, typing, and shortcut attempts produce different poses and motion. The virtual cursor follows movement immediately. While a message is within its four-second reading window, the fox stays in place so the bubble remains readable. Clicks and keys change its pose immediately while text waits; movement and scrolling respect the current reaction window. After 20 seconds without input, the fox rests and hides its bubble; the next input wakes it. Faster typing charges the fox from `1.0×` up to `1.65×`; after typing stops, it eases back to normal over four seconds.
 
 Input attempts never open Touch ID. To unlock, press `Esc` twice within 650 milliseconds; holding the key does not count.
 
@@ -55,21 +57,25 @@ Input attempts never open Touch ID. To unlock, press `Esc` twice within 650 mill
 git clone https://github.com/Captain-Sangam/bonk.git && cd bonk
 ```
 
-2. Build, validate, package, and launch Bonk:
+2. Build, validate, package, and install Bonk:
 
 ```sh
-make run
+make export
 ```
 
-The built app is written to `dist/Bonk.app` and ad-hoc signed. `make run` works with the standalone Command Line Tools; contributors can use `make verify` with full Xcode to include the XCTest suite. On first launch, grant Bonk access under **System Settings → Privacy & Security → Accessibility**. If macOS retains permission for an earlier build, disable and re-enable the entry.
+Launch **Bonk** from Spotlight or Applications. The app is installed into `/Applications`, or `~/Applications` if needed. The built app also remains in `dist/Bonk.app` and is ad-hoc signed.
+
+Use `make run` to build and launch directly from `dist/` without installing, or `make app` to package without launching. These commands work with the standalone Command Line Tools; contributors can use `make verify` with full Xcode to include the XCTest suite. Run `make` or `make help` to see all available commands.
+
+On first launch, grant Bonk access under **System Settings → Privacy & Security → Accessibility**. If macOS retains permission for an earlier build, disable and re-enable the entry.
 
 Activate Bonk from the menu-bar paw with **Bonk this Mac** or the configured `⇧⌘B` shortcut.
 
 ## Jev reaction engine
 
-Jev is the core personality and choreography layer of Bonk's character engine. Local code handles immediate visual feedback; after input has been quiet for two seconds, Jev directs the next beat across six dimensions in one structured decision: reaction, tone, intensity, pacing, flourish, and dialogue.
+Jev is an optional personality and choreography add-on to Bonk's local reaction engine. With Jev enabled, after input has been quiet for two seconds, Jev directs the next beat across six dimensions in one structured decision: reaction, tone, intensity, pacing, flourish, and dialogue.
 
-The dialogue library contains 636 curated lines. Bonk narrows those to at most 32 context-relevant candidates before asking Jev to choose, validates that the answer matches the selected reaction, and avoids recently used lines. A Jev Director panel in Settings shows whether the engine is waiting, deciding, applied, or using its local fallback.
+Jev results obey the same reading window as local dialogue and are discarded when stale or while the fox is resting. The dialogue library contains 636 curated lines. Bonk narrows those to at most 32 context-relevant candidates before asking Jev to choose, validates that the answer matches the selected reaction, and avoids recently used lines. A Jev Director panel in Settings shows whether the engine is waiting, deciding, applied, or using its local fallback.
 
 Network-powered direction is opt-in because it requires a TypeSafe API key. Enable it and add a key in Bonk Settings, or set `TYPESAFE_API_KEY` for a development launch. Settings confirms the saved credential with a masked suffix; the complete value remains in the macOS Keychain.
 

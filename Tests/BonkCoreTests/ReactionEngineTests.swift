@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import XCTest
@@ -130,7 +131,7 @@ final class ReactionEngineTests: XCTestCase {
                 .stalkCursor
             ),
             (makeLocalSnapshot(interaction: .click, count: 2, escalation: 2), .swat),
-            (makeLocalSnapshot(interaction: .keyboardActivity, count: 3, escalation: 3), .coverEars),
+            (makeLocalSnapshot(interaction: .keyboardActivity, count: 3, escalation: 3, typingPace: .steady), .coverEars),
             (
                 makeLocalSnapshot(
                     interaction: .scroll,
@@ -332,6 +333,377 @@ final class ReactionEngineTests: XCTestCase {
         controller.endSession()
     }
 
+    func testContinuousMovementUsesOneGestureBeyondTheEventWindow() throws {
+        var aggregator = InteractionAggregator()
+        let start = Date(timeIntervalSince1970: 1_000)
+        aggregator.reset(at: start.addingTimeInterval(-600))
+        var snapshot: ReactionSnapshot!
+        for index in 0...960 {
+            snapshot = aggregator.record(
+                InteractionSignal(kind: .mouseMovement, timestamp: start.addingTimeInterval(Double(index) / 120), magnitude: 100),
+                characterState: "walk", displayIndex: nil, cursorRegion: .center
+            )
+            XCTAssertLessThanOrEqual(snapshot.escalationLevel, 2)
+            XCTAssertEqual(snapshot.interactionRate, .low)
+            XCTAssertNotEqual(LocalReactionProvider().immediateReaction(for: snapshot).intent, .promptDoubleEscape)
+        }
+        XCTAssertEqual(snapshot.recentEventCounts["mouseMovement"], 1)
+        XCTAssertEqual(snapshot.movementGestureDuration, 8, accuracy: 0.001)
+        XCTAssertEqual(LocalReactionProvider().immediateReaction(for: snapshot).intent, .stalkCursor)
+        let encoded = try JSONEncoder().encode(snapshot)
+        XCTAssertFalse(String(decoding: encoded, as: UTF8.self).contains("movementGestureDuration"))
+        XCTAssertEqual(try JSONDecoder().decode(ReactionSnapshot.self, from: encoded).movementGestureDuration, 0)
+    }
+
+    func testSeparateMovementGesturesAreCountedButEscalationIsCapped() {
+        var aggregator = InteractionAggregator(gestureGap: 0.1)
+        let start = Date()
+        aggregator.reset(at: start)
+        var snapshot: ReactionSnapshot!
+        for index in 0..<12 {
+            snapshot = aggregator.record(
+                InteractionSignal(kind: .mouseMovement, timestamp: start.addingTimeInterval(Double(index) * 0.2)),
+                characterState: "walk", displayIndex: nil, cursorRegion: .center
+            )
+        }
+        XCTAssertEqual(snapshot.recentEventCounts["mouseMovement"], 12)
+        XCTAssertEqual(snapshot.escalationLevel, 2)
+        XCTAssertEqual(snapshot.interactionRate, .low)
+    }
+
+    func testFirstFranticGesturePouncesAndTypingPaceSelectsIntent() {
+        XCTAssertEqual(LocalReactionProvider().immediateReaction(for:
+            makeLocalSnapshot(interaction: .mouseMovement, count: 1, escalation: 1, motionEnergy: .frantic)
+        ).intent, .pounce)
+        for (pace, expected) in [(TypingPace.slow, ReactionIntent.annoyed), (.steady, .coverEars), (.fast, .angry), (.frantic, .angry)] {
+            XCTAssertEqual(LocalReactionProvider().immediateReaction(for:
+                makeLocalSnapshot(interaction: .keyboardActivity, count: 1, escalation: 2, typingPace: pace)
+            ).intent, expected)
+        }
+    }
+
+    func testLocalProviderAvoidsConsecutiveIdenticalIntentToneBeats() {
+        var aggregator = InteractionAggregator()
+        let first = aggregator.record(InteractionSignal(kind: .keyboardActivity), characterState: "idle", displayIndex: nil, cursorRegion: .unknown)
+        let plan = LocalReactionProvider().immediateReaction(for: first)
+        let next = aggregator.record(
+            InteractionSignal(kind: .keyboardActivity), characterState: "annoyed", displayIndex: nil,
+            cursorRegion: .unknown, recentCharacterBeats: ["\(plan.intent.rawValue)|\(plan.tone.rawValue)|sustain"]
+        )
+        let second = LocalReactionProvider().immediateReaction(for: next)
+        XCTAssertEqual(second.intent, plan.intent)
+        XCTAssertNotEqual(second.tone, plan.tone)
+    }
+
+    @MainActor
+    func testMovementAndScrollRespectBothDeadlinesIncludingExactBoundary() {
+        let (controller, character) = makeLocalController()
+        defer { controller.endSession() }
+        let start = Date()
+        controller.handle(InteractionSignal(kind: .mouseMovement, timestamp: start))
+        let first = character.presentation
+        controller.handle(InteractionSignal(kind: .mouseMovement, timestamp: start.addingTimeInterval(1), magnitude: 1_500))
+        controller.handle(InteractionSignal(kind: .scroll, timestamp: start.addingTimeInterval(2), magnitude: 20))
+        XCTAssertEqual(character.presentation.state, first.state)
+        XCTAssertEqual(character.presentation.message, first.message)
+        XCTAssertEqual(character.presentation.variant, first.variant)
+        controller.handle(InteractionSignal(kind: .keyboardActivity, timestamp: start.addingTimeInterval(3)))
+        XCTAssertEqual(character.presentation.state, .annoyed)
+        XCTAssertEqual(character.presentation.message, first.message)
+        let keyVariant = character.presentation.variant
+        controller.handle(InteractionSignal(kind: .mouseMovement, timestamp: start.addingTimeInterval(4), magnitude: 1_500))
+        XCTAssertEqual(character.presentation.variant, keyVariant)
+        controller.handle(InteractionSignal(kind: .mouseMovement, timestamp: start.addingTimeInterval(7), magnitude: 1_500))
+        XCTAssertEqual(character.presentation.state, .pounce)
+        XCTAssertGreaterThan(character.presentation.variant, keyVariant)
+        XCTAssertNotEqual(character.presentation.message, first.message)
+    }
+
+    @MainActor
+    func testAllDeliberateInputsRestartThePoseButPreserveYoungText() {
+        let (controller, character) = makeLocalController()
+        defer { controller.endSession() }
+        let start = Date()
+        controller.handle(InteractionSignal(kind: .mouseMovement, timestamp: start))
+        let text = character.presentation.message
+        for (index, kind) in [InteractionKind.click, .rapidClick, .keyboardActivity, .keyboardActivity, .shortcutAttempt].enumerated() {
+            let variant = character.presentation.variant
+            controller.handle(InteractionSignal(kind: kind, timestamp: start.addingTimeInterval(Double(index + 1) * 0.1)))
+            XCTAssertGreaterThan(character.presentation.variant, variant)
+            XCTAssertEqual(character.presentation.message, text)
+        }
+    }
+
+    @MainActor
+    func testPointerKeepsUpdatingWhileCharacterPositionAndDisplayHold() throws {
+        let screen = try XCTUnwrap(NSScreen.screens.first)
+        let (controller, character) = makeLocalController()
+        defer { controller.endSession() }
+        let start = Date()
+        controller.handle(InteractionSignal(kind: .mouseMovement, timestamp: start))
+        let first = character.presentation
+        let point = CGPoint(x: screen.frame.midX, y: screen.frame.midY)
+        controller.handle(InteractionSignal(kind: .mouseMovement, timestamp: start.addingTimeInterval(1), globalLocation: point, deltaX: -10))
+        XCTAssertEqual(character.presentation.position, first.position)
+        XCTAssertEqual(character.presentation.activeDisplayNumber, first.activeDisplayNumber)
+        XCTAssertNotNil(character.cursorPresentation.activeDisplayNumber)
+        XCTAssertNotNil(character.cursorPresentation.position)
+        XCTAssertNotEqual(character.presentation.lookX, first.lookX)
+        XCTAssertEqual(character.presentation.facing, -1)
+        controller.handle(InteractionSignal(kind: .mouseMovement, timestamp: start.addingTimeInterval(4), globalLocation: point))
+        XCTAssertNotEqual(character.presentation.position, first.position)
+        XCTAssertEqual(character.presentation.activeDisplayNumber, character.cursorPresentation.activeDisplayNumber)
+    }
+
+    @MainActor
+    func testStateOnlyApplicationDoesNotConsumeUnpublishedDialogue() throws {
+        let character = CharacterEngine { false }
+        let line = try XCTUnwrap(DialogueCatalog.shared.all.first { $0.intent == .bonk })
+        let plan = ReactionPlan(intent: .bonk, intensity: 0.5, confidence: 1, source: .local, dialogueID: line.id)
+        character.apply(plan, near: nil, preservingMessage: true)
+        XCTAssertNil(character.presentation.message)
+        let pose = character.presentation
+        character.publishMessage(for: plan)
+        XCTAssertEqual(character.presentation.message, line.text)
+        XCTAssertEqual(character.presentation.variant, pose.variant)
+        XCTAssertEqual(character.presentation.reactionStartedAt, pose.reactionStartedAt)
+        XCTAssertEqual(character.presentation.state, pose.state)
+    }
+
+    @MainActor
+    func testLoneClickPublishesTextAtDeadlineWithoutReplayingAnimation() async throws {
+        let (controller, character) = makeLocalController(displayInterval: 0.12)
+        defer { controller.endSession() }
+        controller.handle(InteractionSignal(kind: .mouseMovement))
+        let original = character.presentation.message
+        try await Task.sleep(nanoseconds: 30_000_000)
+        controller.handle(InteractionSignal(kind: .click))
+        let pose = character.presentation
+        XCTAssertEqual(pose.state, .bonk)
+        XCTAssertEqual(pose.message, original)
+        try await Task.sleep(nanoseconds: 130_000_000)
+        XCTAssertTrue(DialogueCatalog.shared.all.contains { $0.intent == .bonk && $0.text == character.presentation.message })
+        XCTAssertEqual(character.presentation.variant, pose.variant)
+        XCTAssertEqual(character.presentation.reactionStartedAt, pose.reactionStartedAt)
+        let published = character.presentation
+        controller.handle(InteractionSignal(kind: .mouseMovement, magnitude: 1_500))
+        XCTAssertEqual(character.presentation.variant, published.variant)
+        XCTAssertEqual(character.presentation.message, published.message)
+    }
+
+    @MainActor
+    func testLatestPendingCandidateWinsAndFresherPublicationCancelsOldOne() async throws {
+        let (controller, character) = makeLocalController(displayInterval: 0.1)
+        defer { controller.endSession() }
+        let start = Date()
+        controller.handle(InteractionSignal(kind: .mouseMovement, timestamp: start))
+        controller.handle(InteractionSignal(kind: .click, timestamp: start.addingTimeInterval(0.01)))
+        controller.handle(InteractionSignal(kind: .click, timestamp: start.addingTimeInterval(0.02)))
+        try await Task.sleep(nanoseconds: 130_000_000)
+        XCTAssertTrue(DialogueCatalog.shared.all.contains { $0.intent == .swat && $0.text == character.presentation.message })
+        controller.handle(InteractionSignal(kind: .keyboardActivity))
+        controller.handle(InteractionSignal(kind: .scroll, timestamp: Date().addingTimeInterval(1), magnitude: 20))
+        let fresh = character.presentation
+        try await Task.sleep(nanoseconds: 130_000_000)
+        XCTAssertEqual(character.presentation, fresh)
+    }
+
+    @MainActor
+    func testRestWaitsForReadingWindowAndFirstMovementWakesGently() async throws {
+        let (controller, character) = makeLocalController(displayInterval: 0.1, restInterval: 0.02)
+        defer { controller.endSession() }
+        controller.handle(InteractionSignal(kind: .mouseMovement))
+        try await Task.sleep(nanoseconds: 45_000_000)
+        XCTAssertNotNil(character.presentation.message)
+        XCTAssertNotEqual(character.presentation.state, .sleeping)
+        try await Task.sleep(nanoseconds: 90_000_000)
+        XCTAssertEqual(character.presentation.state, .sleeping)
+        XCTAssertNil(character.presentation.message)
+        XCTAssertEqual(character.presentation.tone, .sleepy)
+        controller.handle(InteractionSignal(kind: .mouseMovement))
+        XCTAssertEqual(character.presentation.state, .notice)
+        XCTAssertNotNil(character.presentation.message)
+        XCTAssertLessThanOrEqual(character.presentation.intensity, 0.4)
+    }
+
+    @MainActor
+    func testDuePendingMessageReceivesReadingTimeBeforeRest() async throws {
+        let (controller, character) = makeLocalController(displayInterval: 0.1, restInterval: 0.01)
+        defer { controller.endSession() }
+        controller.handle(InteractionSignal(kind: .mouseMovement))
+        controller.handle(InteractionSignal(kind: .click))
+        try await Task.sleep(nanoseconds: 130_000_000)
+        XCTAssertEqual(character.presentation.state, .bonk)
+        XCTAssertTrue(DialogueCatalog.shared.all.contains { $0.intent == .bonk && $0.text == character.presentation.message })
+        try await Task.sleep(nanoseconds: 120_000_000)
+        XCTAssertEqual(character.presentation.state, .sleeping)
+        XCTAssertNil(character.presentation.message)
+    }
+
+    @MainActor
+    func testEndSessionCancelsTimersAndRepeatedBeginStartsClean() async throws {
+        let (controller, character) = makeLocalController(displayInterval: 0.08, restInterval: 0.12)
+        controller.handle(InteractionSignal(kind: .mouseMovement))
+        controller.handle(InteractionSignal(kind: .click))
+        controller.endSession()
+        let stopped = character.presentation
+        try await Task.sleep(nanoseconds: 180_000_000)
+        XCTAssertEqual(character.presentation, stopped)
+        for _ in 0..<3 {
+            controller.beginSession()
+            controller.handle(InteractionSignal(kind: .mouseMovement))
+            XCTAssertEqual(character.presentation.state, .notice)
+            controller.handle(InteractionSignal(kind: .click))
+        }
+        controller.beginSession()
+        defer { controller.endSession() }
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertNil(character.presentation.message)
+        controller.handle(InteractionSignal(kind: .mouseMovement))
+        XCTAssertEqual(character.presentation.state, .notice)
+    }
+
+    @MainActor
+    func testJevTextWaitsForReadingWindowAndDoesNotReplayPose() async throws {
+        let provider = RecordingReactionProvider()
+        let director = JevDirectorMonitor()
+        let character = CharacterEngine { false }
+        let controller = ReactionController(characterEngine: character, director: director,
+            quietPeriodNanoseconds: 10_000_000, displayInterval: 0.15,
+            providerFactory: { _ in provider }, configuration: { (true, "unit-test-key") })
+        controller.beginSession()
+        defer { controller.endSession() }
+        controller.handle(InteractionSignal(kind: .click))
+        let local = character.presentation
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(character.presentation.message, local.message)
+        XCTAssertEqual(character.presentation.variant, local.variant)
+        XCTAssertEqual(director.phase, .directing)
+        try await Task.sleep(nanoseconds: 150_000_000)
+        XCTAssertEqual(director.phase, .applied)
+        XCTAssertTrue(DialogueCatalog.shared.all.contains { $0.intent == .coverEars && $0.text == character.presentation.message })
+        XCTAssertEqual(character.presentation.variant, local.variant)
+    }
+
+    @MainActor
+    func testLateJevResultIsDiscardedAfterRest() async throws {
+        let provider = HeldReactionProvider()
+        let character = CharacterEngine { false }
+        let controller = ReactionController(characterEngine: character, director: JevDirectorMonitor(),
+            quietPeriodNanoseconds: 1_000_000, displayInterval: 0.02, restInterval: 0.05,
+            providerFactory: { _ in provider }, configuration: { (true, "unit-test-key") })
+        controller.beginSession()
+        defer { controller.endSession() }
+        controller.handle(InteractionSignal(kind: .click))
+        try await waitForRequest(provider)
+        try await Task.sleep(nanoseconds: 90_000_000)
+        XCTAssertEqual(character.presentation.state, .sleeping)
+        let sleeping = character.presentation
+        await provider.releaseAll()
+        try await Task.sleep(nanoseconds: 20_000_000)
+        XCTAssertEqual(character.presentation, sleeping)
+    }
+
+    @MainActor
+    func testNewInputAndAuthenticationInvalidateInFlightJevResults() async throws {
+        for authenticating in [false, true] {
+            let provider = HeldReactionProvider()
+            let character = CharacterEngine { false }
+            let controller = ReactionController(characterEngine: character, director: JevDirectorMonitor(),
+                quietPeriodNanoseconds: 1_000_000, displayInterval: 0.06,
+                providerFactory: { _ in provider }, configuration: { (true, "unit-test-key") })
+            controller.beginSession()
+            controller.handle(InteractionSignal(kind: .click))
+            try await waitForRequest(provider)
+            if authenticating {
+                controller.pointToAuthentication()
+            } else {
+                controller.handle(InteractionSignal(kind: .keyboardActivity))
+            }
+            await provider.releaseAll()
+            try await Task.sleep(nanoseconds: 100_000_000)
+            XCTAssertNotEqual(character.presentation.state, .angry)
+            if authenticating {
+                XCTAssertEqual(character.presentation.message, "Double Esc captured. Use Touch ID.")
+            } else {
+                XCTAssertTrue(DialogueCatalog.shared.all.contains { $0.intent == .annoyed && $0.text == character.presentation.message })
+            }
+            controller.endSession()
+            await provider.releaseAll()
+        }
+    }
+
+    @MainActor
+    func testNewSignalInvalidatesQueuedJevTextAndSessionEndDiscardsLateReply() async throws {
+        let provider = HeldReactionProvider()
+        let director = JevDirectorMonitor()
+        let character = CharacterEngine { false }
+        let controller = ReactionController(characterEngine: character, director: director,
+            quietPeriodNanoseconds: 1_000_000, displayInterval: 0.1,
+            providerFactory: { _ in provider }, configuration: { (true, "unit-test-key") })
+        controller.beginSession()
+        controller.handle(InteractionSignal(kind: .click))
+        let local = character.presentation.message
+        try await waitForRequest(provider)
+        await provider.releaseAll()
+        try await Task.sleep(nanoseconds: 15_000_000)
+        controller.handle(InteractionSignal(kind: .mouseMovement))
+        try await Task.sleep(nanoseconds: 130_000_000)
+        XCTAssertEqual(character.presentation.message, local)
+        controller.endSession()
+        let ended = character.presentation
+        await provider.releaseAll()
+        try await Task.sleep(nanoseconds: 20_000_000)
+        XCTAssertEqual(character.presentation, ended)
+        XCTAssertEqual(director.phase, .localOnly)
+    }
+
+    @MainActor
+    func testQueuedJevKeepsClickDialogueWhenInvalidatedOrDisabled() async throws {
+        for disableJev in [false, true] {
+            var enabled = true
+            let provider = HeldReactionProvider()
+            let character = CharacterEngine { false }
+            let controller = ReactionController(characterEngine: character, director: JevDirectorMonitor(),
+                quietPeriodNanoseconds: 1_000_000, displayInterval: 0.15,
+                providerFactory: { _ in provider }, configuration: { (enabled, "unit-test-key") })
+            controller.beginSession()
+            controller.handle(InteractionSignal(kind: .mouseMovement))
+            controller.handle(InteractionSignal(kind: .click))
+            try await waitForRequest(provider)
+            await provider.releaseAll()
+            try await Task.sleep(nanoseconds: 15_000_000)
+            if disableJev {
+                enabled = false
+            } else {
+                controller.handle(InteractionSignal(kind: .mouseMovement))
+            }
+            try await Task.sleep(nanoseconds: 180_000_000)
+            XCTAssertEqual(character.presentation.state, .bonk)
+            XCTAssertTrue(DialogueCatalog.shared.all.contains { $0.intent == .bonk && $0.text == character.presentation.message })
+            controller.endSession()
+            await provider.releaseAll()
+        }
+    }
+
+    private func waitForRequest(_ provider: HeldReactionProvider) async throws {
+        for _ in 0..<100 {
+            if await provider.calls > 0 { return }
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        XCTFail("Jev request did not start")
+        throw BonkError.jevUnavailable
+    }
+
+    @MainActor
+    private func makeLocalController(displayInterval: TimeInterval = 4, restInterval: TimeInterval = 20) -> (ReactionController, CharacterEngine) {
+        let character = CharacterEngine { false }
+        let controller = ReactionController(characterEngine: character, director: JevDirectorMonitor(),
+            displayInterval: displayInterval, restInterval: restInterval, configuration: { (false, nil) })
+        controller.beginSession()
+        return (controller, character)
+    }
+
     private func makeJevProvider() -> JevReactionProvider {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]
@@ -359,7 +731,8 @@ final class ReactionEngineTests: XCTestCase {
         interaction: InteractionKind,
         count: Int,
         escalation: Int,
-        motionEnergy: MotionEnergy = .still
+        motionEnergy: MotionEnergy = .still,
+        typingPace: TypingPace = .none
     ) -> ReactionSnapshot {
         ReactionSnapshot(
             interaction: interaction,
@@ -370,7 +743,8 @@ final class ReactionEngineTests: XCTestCase {
             currentCharacterState: "idle",
             displayIndex: 0,
             cursorRegion: .center,
-            motionEnergy: motionEnergy
+            motionEnergy: motionEnergy,
+            typingPace: typingPace
         )
     }
 
@@ -466,4 +840,22 @@ private final class MockURLProtocol: URLProtocol {
     }
 
     override func stopLoading() {}
+}
+
+private actor HeldReactionProvider: ReactionProvider {
+    private(set) var calls = 0
+    private var replies: [CheckedContinuation<ReactionPlan, Never>] = []
+
+    func reaction(for snapshot: ReactionSnapshot) async throws -> ReactionPlan {
+        calls += 1
+        return await withCheckedContinuation { replies.append($0) }
+    }
+
+    func releaseAll() {
+        let pending = replies
+        replies.removeAll()
+        for reply in pending {
+            reply.resume(returning: ReactionPlan(intent: .angry, intensity: 1, confidence: 1, source: .jev))
+        }
+    }
 }

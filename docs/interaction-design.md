@@ -18,13 +18,17 @@ Choose **Bonk this Mac** from the menu-bar paw or use the configured `⇧⌘B` s
 | Scroll | Cling or tumble | Scroll magnitude and direction drive the pose. |
 | Persistent activity | Show the unlock hint | Activity alone never opens authentication. |
 
-The virtual cursor and fox deliberately use different motion systems. The cursor maps directly to the latest local virtual position at up to 120 Hz and has no easing. The fox keeps spring movement, poses, and secondary animation so it feels alive without making the pointer target lag.
+The virtual cursor and fox deliberately use different motion systems. The cursor maps directly to the latest local virtual position at up to 120 Hz and has no easing. The fox keeps spring movement, poses, and secondary animation. Its position and display hold during each four-second message reading window, while gaze and facing continue tracking. Movement and scrolling cannot change a reaction before its window ends; clicks and keys restart the pose immediately while their text waits. After 20 seconds without input the fox rests with no speech bubble, and the next input wakes it immediately.
+
+Rendered examples: [a click pose with the previous message still visible](images/polish-click-reading-window.png) and [idle rest with no bubble](images/polish-idle-rest.png).
 
 Typing charges the fox from `1.0×` to a maximum of `1.65×`. After 350 milliseconds of quiet, the character shrinks smoothly back to normal over four seconds. A new burst interrupts the countdown and builds from the current size. Holding one key does not add energy.
 
 ## Jev-directed next beats
 
-Immediate reactions are local. Once input has been quiet for two seconds, Jev directs the next character beat by choosing a reaction, personality tone, intensity, story pacing, visual flourish, and one context-relevant line from the curated catalogue. This turns a burst into a small progression—such as sleepy, alert, smug, then cooldown—instead of allowing network responses to fight active movement.
+The complete reaction engine works locally. With the optional Jev add-on enabled, once input has been quiet for two seconds, Jev directs the next character beat by choosing a reaction, personality tone, intensity, story pacing, visual flourish, and one context-relevant line from the curated catalogue. This turns a burst into a small progression—such as sleepy, alert, smug, then cooldown—instead of allowing network responses to fight active movement.
+
+Jev also observes the minimum text display window and cannot replace a message while someone is reading it.
 
 The Jev Director section in Settings makes the state concrete: waiting for input to settle, directing, applied, or local fallback. It also shows the latest bounded decision and the number of Jev calls in the guarded session.
 
