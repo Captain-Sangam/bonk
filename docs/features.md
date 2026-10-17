@@ -21,6 +21,21 @@ Bonk is not a replacement for the macOS Lock Screen. Anything already visible re
 - Complete deterministic offline reaction engine
 - Keychain storage for the optional Jev API key
 - Reproducible character assets and screenshot tooling
+- Three bonk modes: classic fox, screen-off, and an agents away-screen
+- Opt-in intrusion camera that photographs genuine failed unlock attempts
+- Local process-name scan that lists the agents still running while you are away
+
+## Bonk modes
+
+Choose what Bonk shows while guarding in **Settings → Bonk mode**. The mode is fixed for a guard session; stop Bonk to change it. Input blocking and double-Escape owner unlock work identically in every mode.
+
+- **Classic fox** — the original transparent overlay with the reacting fox; the desktop stays visible.
+- **Screen off** — an opaque black cover on every display, so the Mac looks powered off. The fox, its sounds, and Jev stay idle.
+- **Agents away-screen** — a minimal black screen on every display showing a lock, an `AWAY` lockup, a "running agents" pill, a live waveform, and the clock. It lists the processes that match your configured agent names, updating as they start and stop, so a passerby sees that work is in progress and you will be back.
+
+## Intrusion camera
+
+Enable **Settings → Intrusion camera** to photograph whoever fails to unlock the Mac while it is bonked. Bonk asks for camera access when you turn it on. It captures a single photo **only** on a genuine failed unlock (a wrong password or biometric) — never on a cancelled prompt or a successful unlock — and saves it to `~/Pictures/Bonk/`. When you unlock, the menu shows how many attempts were captured and reveals the folder. This works in every mode and never delays unlocking.
 
 ## Character reactions
 

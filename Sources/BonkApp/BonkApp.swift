@@ -183,11 +183,31 @@ private struct MenuBarContent: View {
                 model.toggleGuard()
             }
             .keyboardShortcut(shortcutEquivalent, modifiers: [.command, .shift])
+
+            Picker("Bonk Mode", selection: $settings.bonkMode) {
+                ForEach(BonkMode.allCases, id: \.self) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+
+            Toggle("Photograph failed unlocks", isOn: cameraMenuBinding)
         }
 
         Divider()
 
         Toggle("Keep Awake", isOn: $settings.keepAwake)
+
+        if !guardController.isGuarding && guardController.failedAttempts > 0 {
+            Divider()
+            Button {
+                NSWorkspace.shared.open(model.camera.captureDirectory)
+                guardController.clearFailedAttempts()
+            } label: {
+                let n = guardController.failedAttempts
+                Label("\(n) failed unlock attempt\(n == 1 ? "" : "s") — Show in Finder",
+                      systemImage: "exclamationmark.triangle.fill")
+            }
+        }
 
         Divider()
 
@@ -212,6 +232,18 @@ private struct MenuBarContent: View {
                 .font(.caption)
                 .foregroundStyle(.red)
         }
+    }
+
+    private var cameraMenuBinding: Binding<Bool> {
+        Binding(
+            get: { settings.cameraMonitorEnabled },
+            set: { enabled in
+                settings.cameraMonitorEnabled = enabled
+                if enabled {
+                    Task { _ = await model.camera.requestAccess() }
+                }
+            }
+        )
     }
 
     private var shortcutEquivalent: KeyEquivalent {

@@ -33,8 +33,10 @@ flowchart LR
 | `JevDirectorMonitor` | Exposes waiting, directing, applied, and local-fallback status to Settings. |
 | `CharacterEngine` | Converts directed plans, dialogue history, typing energy, and local motion into a renderable presentation. |
 | `DialogueCatalog` | Provides 636 bounded lines and context-filtered Jev candidate lists. |
-| `OverlayManager` | Maintains one transparent, high-level window per display. |
-| `AuthenticationManager` | Delegates owner verification to macOS `LocalAuthentication`. |
+| `OverlayManager` | Maintains one high-level window per display and renders the active bonk mode: transparent for the classic fox, opaque black for screen-off, and the away-screen for agents. Owns the `AgentMonitor` lifecycle. |
+| `AgentMonitor` | Scans running-process names against the configured list for the agents away-screen (off the main thread). |
+| `IntrusionCamera` | On a genuine failed unlock, captures one photo to `~/Pictures/Bonk/`; off-main and fire-and-forget. |
+| `AuthenticationManager` | Delegates owner verification to macOS `LocalAuthentication`, mapping the error so only a genuine rejection counts as a failed attempt. |
 | `AwakeManager` | Holds the activity assertion used while Guard Mode is active. |
 
 ## Guard state machine

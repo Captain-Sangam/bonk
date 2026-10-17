@@ -15,7 +15,13 @@ public final class GuardController: ObservableObject {
     private let authenticationManager: OwnerAuthenticating
     private let reactionController: ReactionControlling
     private let characterEngine: CharacterPresenting
+    private let cameraMonitor: IntrusionCapturing?
 
+    /// Count of genuine failed unlock attempts this session, reset on activate(). Surfaced in the
+    /// menu whenever Bonk is idle; survives fail-open because it is never cleared on cleanup.
+    @Published public private(set) var failedAttempts: Int = 0
+
+    private var activeMode: BonkMode = .classic
     private var authenticationTask: Task<Void, Never>?
     private var returnToArmedTask: Task<Void, Never>?
 
@@ -26,7 +32,8 @@ public final class GuardController: ObservableObject {
         overlayManager: OverlayManaging,
         authenticationManager: OwnerAuthenticating,
         reactionController: ReactionControlling,
-        characterEngine: CharacterPresenting
+        characterEngine: CharacterPresenting,
+        cameraMonitor: IntrusionCapturing? = nil
     ) {
         self.settings = settings
         self.inputInterceptor = inputInterceptor
@@ -35,6 +42,7 @@ public final class GuardController: ObservableObject {
         self.authenticationManager = authenticationManager
         self.reactionController = reactionController
         self.characterEngine = characterEngine
+        self.cameraMonitor = cameraMonitor
 
         inputInterceptor.onSignal = { [weak self] signal in
             Task { @MainActor in self?.handle(signal) }
@@ -53,10 +61,16 @@ public final class GuardController: ObservableObject {
     public func activate() {
         guard status == .idle else { return }
         lastError = nil
-        reactionController.beginSession()
+        failedAttempts = 0
+        let mode = settings.bonkMode
+        activeMode = mode
+        // Only the classic fox runs the reaction/Jev/sound pipeline; other modes stay silent.
+        if mode == .classic {
+            reactionController.beginSession()
+        }
 
         do {
-            try overlayManager.show()
+            try overlayManager.show(mode: mode)
             if settings.keepAwake {
                 awakeManager.start()
             }
@@ -73,6 +87,10 @@ public final class GuardController: ObservableObject {
 
     public func clearError() {
         lastError = nil
+    }
+
+    public func clearFailedAttempts() {
+        failedAttempts = 0
     }
 
     public func shutdown() {
@@ -118,13 +136,28 @@ public final class GuardController: ObservableObject {
                 return
             } catch {
                 self.lastError = error.localizedDescription
+                // Only a genuine rejection (wrong password/biometric) counts as an intruder —
+                // never a "Keep Bonk On" cancel or an unavailable method.
+                let genuineFailure: Bool
+                if case .authenticationFailed = (error as? BonkError) {
+                    genuineFailure = true
+                } else {
+                    genuineFailure = false
+                }
+                // Re-arm input first, then fire the camera so restoration is never delayed.
                 self.resumeAfterAuthenticationFailure()
+                if genuineFailure, self.settings.cameraMonitorEnabled, let camera = self.cameraMonitor {
+                    self.failedAttempts += 1
+                    Task { await camera.captureIntrusion() }
+                }
             }
         }
     }
 
     private func completeSuccessfulAuthentication() async {
-        characterEngine.celebrate()
+        if activeMode == .classic {
+            characterEngine.celebrate()
+        }
         try? await Task.sleep(nanoseconds: 600_000_000)
         cleanupGuardResources()
         status = .idle

@@ -55,6 +55,21 @@ private struct BonkChecks {
             "Menu-bar logo must use an 18-point intrinsic size"
         )
 
+        // Agent name matching for the away-screen: exact `comm` basenames, deduped, no substrings.
+        let psSample = "/usr/bin/claude\n/opt/homebrew/bin/codex\n/usr/bin/node\n/usr/bin/claude\n"
+        try require(
+            AgentMonitor.matches(in: psSample, patterns: ["claude", "codex"]) == ["claude", "codex"],
+            "Agent matcher must dedupe and match exact basenames"
+        )
+        try require(
+            AgentMonitor.matches(in: "/usr/bin/nodelike\n", patterns: ["node"]).isEmpty,
+            "Agent matcher must not substring-match unrelated processes"
+        )
+        try require(
+            AgentMonitor.matches(in: psSample, patterns: []).isEmpty,
+            "Empty agent patterns must match nothing"
+        )
+
         var aggregator = InteractionAggregator()
         let start = Date(timeIntervalSince1970: 1_000)
         aggregator.reset(at: start)

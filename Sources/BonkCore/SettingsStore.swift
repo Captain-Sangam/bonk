@@ -26,6 +26,30 @@ public final class SettingsStore: ObservableObject {
         didSet { defaults.set(shortcutKey, forKey: Keys.shortcutKey) }
     }
 
+    @Published public var bonkMode: BonkMode {
+        didSet { defaults.set(bonkMode.rawValue, forKey: Keys.bonkMode) }
+    }
+
+    @Published public var cameraMonitorEnabled: Bool {
+        didSet { defaults.set(cameraMonitorEnabled, forKey: Keys.cameraMonitorEnabled) }
+    }
+
+    /// Comma-separated process names the agents away-screen looks for.
+    @Published public var agentPatterns: String {
+        didSet { defaults.set(agentPatterns, forKey: Keys.agentPatterns) }
+    }
+
+    /// `agentPatterns` parsed into lowercased, trimmed, non-empty tokens.
+    public var agentPatternList: [String] {
+        agentPatterns
+            .lowercased()
+            .split(whereSeparator: { $0 == "," || $0 == "\n" })
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    public static let defaultAgentPatterns = "claude, codex, aider, ollama"
+
     @Published public private(set) var launchAtLogin: Bool
     @Published public private(set) var lastError: String?
 
@@ -40,6 +64,9 @@ public final class SettingsStore: ObservableObject {
         aiReactionsEnabled = defaults.object(forKey: Keys.aiReactionsEnabled) as? Bool ?? false
         onboardingComplete = defaults.object(forKey: Keys.onboardingComplete) as? Bool ?? false
         shortcutKey = defaults.string(forKey: Keys.shortcutKey) ?? "B"
+        bonkMode = (defaults.string(forKey: Keys.bonkMode)).flatMap(BonkMode.init(rawValue:)) ?? .classic
+        cameraMonitorEnabled = defaults.object(forKey: Keys.cameraMonitorEnabled) as? Bool ?? false
+        agentPatterns = defaults.string(forKey: Keys.agentPatterns) ?? Self.defaultAgentPatterns
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
@@ -94,5 +121,8 @@ public final class SettingsStore: ObservableObject {
         static let aiReactionsEnabled = "aiReactionsEnabled"
         static let onboardingComplete = "onboardingComplete"
         static let shortcutKey = "shortcutKey"
+        static let bonkMode = "bonkMode"
+        static let cameraMonitorEnabled = "cameraMonitorEnabled"
+        static let agentPatterns = "agentPatterns"
     }
 }

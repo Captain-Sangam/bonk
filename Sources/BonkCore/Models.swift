@@ -10,6 +10,24 @@ public enum GuardStatus: String, Equatable, Sendable {
     public var isGuarding: Bool { self != .idle }
 }
 
+/// What Bonk shows on the overlay while guarding. Chosen while idle; fixed for a guard session.
+public enum BonkMode: String, CaseIterable, Equatable, Sendable {
+    /// The reacting fox over a transparent desktop (original behaviour).
+    case classic
+    /// An opaque black cover on every display, so the Mac looks powered off.
+    case screenOff
+    /// A minimal away-screen listing the agents still running, on every display.
+    case agents
+
+    public var displayName: String {
+        switch self {
+        case .classic: return "Classic fox"
+        case .screenOff: return "Screen off"
+        case .agents: return "Agents away-screen"
+        }
+    }
+}
+
 public enum InteractionKind: String, Codable, CaseIterable, Hashable, Sendable {
     case mouseMovement
     case click
@@ -233,6 +251,7 @@ public enum BonkError: LocalizedError, Equatable {
     case overlayUnavailable(String)
     case authenticationUnavailable(String)
     case authenticationFailed(String)
+    case authenticationCancelled(String)
     case jevUnavailable
     case invalidJevResponse
     case launchAtLoginUnavailable(String)
@@ -251,6 +270,8 @@ public enum BonkError: LocalizedError, Equatable {
             return "Owner authentication is unavailable: \(reason)"
         case let .authenticationFailed(reason):
             return "Owner authentication failed: \(reason)"
+        case let .authenticationCancelled(reason):
+            return "Owner authentication was cancelled: \(reason)"
         case .jevUnavailable:
             return "Jev is unavailable. Bonk is using local reactions."
         case .invalidJevResponse:

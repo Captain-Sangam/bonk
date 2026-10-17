@@ -9,19 +9,29 @@ public final class OverlayManager: OverlayManaging {
     private var displayObserver: AnyCancellable?
     private var isActive = false
     private var isCapturingInput = false
+    private var mode: BonkMode = .classic
+    private var agentMonitor: AgentMonitor?
+    private let agentPatterns: () -> [String]
 
     public var onFailure: ((String) -> Void)?
 
-    public init(characterEngine: CharacterEngine) {
+    public init(characterEngine: CharacterEngine, agentPatterns: @escaping () -> [String] = { [] }) {
         self.characterEngine = characterEngine
+        self.agentPatterns = agentPatterns
     }
 
-    public func show() throws {
+    public func show(mode: BonkMode) throws {
         guard !isActive else { return }
         guard !NSScreen.screens.isEmpty else {
             throw BonkError.overlayUnavailable("No connected display was available.")
         }
+        self.mode = mode
         isActive = true
+        if mode == .agents {
+            let monitor = AgentMonitor(patterns: agentPatterns())
+            agentMonitor = monitor
+            monitor.start()
+        }
         displayObserver = NotificationCenter.default
             .publisher(for: NSApplication.didChangeScreenParametersNotification)
             .sink { [weak self] _ in self?.rebuildWindows() }
@@ -37,33 +47,51 @@ public final class OverlayManager: OverlayManaging {
         isActive = false
         isCapturingInput = false
         displayObserver = nil
+        agentMonitor?.stop()
+        agentMonitor = nil
         windows.forEach { $0.close() }
         windows.removeAll()
     }
 
     private func rebuildWindows() {
         guard isActive else { return }
-        windows.forEach { $0.close() }
-        windows.removeAll()
 
         let screens = NSScreen.screens
         guard !screens.isEmpty else {
+            windows.forEach { $0.close() }
+            windows.removeAll()
             onFailure?(BonkError.overlayUnavailable("The display configuration became empty.").localizedDescription)
             return
         }
 
+        // Build the new windows BEFORE closing the old ones, so the desktop never
+        // flashes through during a monitor hot-plug (important for screen-off mode).
+        var newWindows: [BonkOverlayWindow] = []
         for (index, screen) in screens.enumerated() {
             let number = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.intValue
-            let view = CharacterOverlayView(
-                characterEngine: characterEngine,
-                displayNumber: number,
-                isPrimaryDisplay: index == 0
-            )
-            let window = BonkOverlayWindow(screen: screen, rootView: view)
+            let window: BonkOverlayWindow
+            switch mode {
+            case .classic:
+                let view = CharacterOverlayView(
+                    characterEngine: characterEngine,
+                    displayNumber: number,
+                    isPrimaryDisplay: index == 0
+                )
+                window = BonkOverlayWindow(screen: screen, opaque: false, rootView: view)
+            case .screenOff:
+                window = BonkOverlayWindow(screen: screen, opaque: true, rootView: Color.black.ignoresSafeArea())
+            case .agents:
+                let view = AwayScreenView(monitor: agentMonitor ?? AgentMonitor(patterns: agentPatterns()))
+                window = BonkOverlayWindow(screen: screen, opaque: true, rootView: view)
+            }
             window.setCapturingInput(isCapturingInput)
             window.orderFrontRegardless()
-            windows.append(window)
+            newWindows.append(window)
         }
+
+        let previous = windows
+        windows = newWindows
+        previous.forEach { $0.close() }
     }
 }
 
@@ -74,7 +102,7 @@ private final class BonkOverlayWindow: NSWindow {
     override var canBecomeKey: Bool { capturesInput }
     override var canBecomeMain: Bool { false }
 
-    init<Content: View>(screen: NSScreen, rootView: Content) {
+    init<Content: View>(screen: NSScreen, opaque: Bool = false, rootView: Content) {
         super.init(
             contentRect: screen.frame,
             styleMask: [.borderless],
@@ -83,8 +111,8 @@ private final class BonkOverlayWindow: NSWindow {
         )
 
         setFrame(screen.frame, display: false)
-        isOpaque = false
-        backgroundColor = .clear
+        isOpaque = opaque
+        backgroundColor = opaque ? .black : .clear
         hasShadow = false
         level = guardLevel
         collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
