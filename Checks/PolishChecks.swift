@@ -336,7 +336,7 @@ private final class PolishAwake: AwakeManaging {
 @MainActor
 private final class PolishOverlay: OverlayManaging {
     var onFailure: ((String) -> Void)?
-    func show() throws {}
+    func show(mode: BonkMode) throws {}
     func setCapturingInput(_ capture: Bool) {}
     func hide() {}
 }

@@ -32,5 +32,7 @@
     <string>Copyright © 2026 Captain-sangam</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Bonk photographs whoever fails to unlock your Mac while it is bonked, so you can see who tried. Photos are saved only to your Mac.</string>
 </dict>
 </plist>

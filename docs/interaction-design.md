@@ -4,7 +4,17 @@ Bonk protects a still-visible desktop without behaving like a conventional lock 
 
 ## Activate
 
-Choose **Bonk this Mac** from the menu-bar paw or use the configured `⇧⌘B` shortcut. Activation has no confirmation dialog. Bonk creates transparent overlays on every display, starts the keep-awake assertion, and then enables input interception.
+Choose **Bonk this Mac** from the menu-bar paw or use the configured `⇧⌘B` shortcut. Activation has no confirmation dialog. Bonk creates an overlay on every display for the selected mode, starts the keep-awake assertion, and then enables input interception.
+
+## Bonk modes
+
+Settings offers three modes, fixed for the duration of a guard session:
+
+- **Classic fox** — transparent overlays with the reacting fox described below.
+- **Screen off** — opaque black on every display, so the Mac looks powered off; the fox, sounds, and Jev stay idle.
+- **Agents away-screen** — a minimal black screen on every display with a lock, an `AWAY` lockup, a "running agents" pill, an animated waveform, and the clock. It lists the running processes that match the agent names configured in Settings.
+
+Input blocking and the double-Escape unlock behave identically in every mode. The optional intrusion camera also applies to every mode: on a genuine failed unlock it saves one photo to `~/Pictures/Bonk/`, and the menu reports captured attempts after you unlock.
 
 ## Guarded behavior
 

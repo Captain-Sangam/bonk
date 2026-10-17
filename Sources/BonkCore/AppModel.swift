@@ -8,6 +8,7 @@ public final class AppModel: ObservableObject {
     public let characterEngine: CharacterEngine
     public let jevDirector: JevDirectorMonitor
     public let guardController: GuardController
+    public let camera: IntrusionCamera
 
     private let shortcutMonitor = ShortcutMonitor()
     private var cancellables: Set<AnyCancellable> = []
@@ -23,11 +24,16 @@ public final class AppModel: ObservableObject {
         ) {
             (settings.aiReactionsEnabled, settings.jevAPIKey)
         }
-        let overlayManager = OverlayManager(characterEngine: characterEngine)
+        let overlayManager = OverlayManager(characterEngine: characterEngine) {
+            settings.agentPatternList
+        }
+
+        let camera = IntrusionCamera()
 
         self.settings = settings
         self.characterEngine = characterEngine
         self.jevDirector = jevDirector
+        self.camera = camera
         guardController = GuardController(
             settings: settings,
             inputInterceptor: InputInterceptor(),
@@ -35,7 +41,8 @@ public final class AppModel: ObservableObject {
             overlayManager: overlayManager,
             authenticationManager: AuthenticationManager(),
             reactionController: reactionController,
-            characterEngine: characterEngine
+            characterEngine: characterEngine,
+            cameraMonitor: camera
         )
     }
 

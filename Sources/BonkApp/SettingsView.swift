@@ -5,16 +5,20 @@ struct SettingsView: View {
     @ObservedObject var model: AppModel
     @ObservedObject private var settings: SettingsStore
     @ObservedObject private var director: JevDirectorMonitor
+    @ObservedObject private var guardController: GuardController
     @State private var apiKey = ""
     @State private var savedKeySuffix: String?
     @State private var keyConfirmation: String?
+    @State private var cameraAuthorized: Bool
 
     init(model: AppModel) {
         self.model = model
         let settings = model.settings
         self.settings = settings
         self.director = model.jevDirector
+        self.guardController = model.guardController
         _savedKeySuffix = State(initialValue: settings.jevAPIKey.map { String($0.suffix(4)) })
+        _cameraAuthorized = State(initialValue: model.camera.isAuthorized)
     }
 
     var body: some View {
@@ -29,6 +33,51 @@ struct SettingsView: View {
                 )
                 Toggle("Keep Mac awake while Bonked", isOn: $settings.keepAwake)
                 Toggle("Character sounds", isOn: $settings.soundsEnabled)
+            }
+
+            Section("Bonk mode") {
+                Picker("While Bonked, show", selection: $settings.bonkMode) {
+                    ForEach(BonkMode.allCases, id: \.self) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+                .disabled(guardController.isGuarding)
+
+                if guardController.isGuarding {
+                    Text("Stop Bonk to change the mode.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if settings.bonkMode == .agents {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Agent process names")
+                            .font(.subheadline.weight(.semibold))
+                        TextField("claude, codex, aider", text: $settings.agentPatterns)
+                            .textFieldStyle(.roundedBorder)
+                        Text("Comma-separated. The away-screen lists running processes whose name matches.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            Section("Intrusion camera") {
+                Toggle("Photograph failed unlock attempts", isOn: cameraBinding)
+
+                if settings.cameraMonitorEnabled {
+                    HStack(spacing: 8) {
+                        Image(systemName: cameraAuthorized ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                            .foregroundStyle(cameraAuthorized ? Color.green : Color.orange)
+                        Text(cameraAuthorized ? "Camera access granted" : "Camera access needed — enable Bonk in System Settings → Privacy & Security → Camera")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Text("On a genuine failed unlock, Bonk saves one photo to ~/Pictures/Bonk and notes it when you unlock. Photos stay on your Mac.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Jev reaction engine") {
@@ -137,6 +186,18 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .padding()
         .frame(width: 500, height: 640)
+    }
+
+    private var cameraBinding: Binding<Bool> {
+        Binding(
+            get: { settings.cameraMonitorEnabled },
+            set: { enabled in
+                settings.cameraMonitorEnabled = enabled
+                if enabled {
+                    Task { cameraAuthorized = await model.camera.requestAccess() }
+                }
+            }
+        )
     }
 
     private var directorIcon: String {
