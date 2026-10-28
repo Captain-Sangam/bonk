@@ -242,6 +242,10 @@ public final class InputInterceptor: InputIntercepting {
         .rightMouseDragged,
         .otherMouseDragged,
         .scrollWheel,
+        // Spaces swipes use gesture (29) and Dock-control (30) events,
+        // rather than scroll-wheel events. Suppress both while guarding.
+        CGEventType(rawValue: 29)!,
+        CGEventType(rawValue: 30)!,
         .keyDown,
         .keyUp,
         .flagsChanged
