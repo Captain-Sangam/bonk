@@ -44,16 +44,12 @@ public final class InputInterceptor: InputIntercepting {
             throw BonkError.accessibilityPermissionMissing
         }
 
-        let mask = Self.eventTypes.reduce(CGEventMask(0)) { partial, type in
-            partial | (CGEventMask(1) << CGEventMask(type.rawValue))
-        }
-
         let userInfo = Unmanaged.passUnretained(self).toOpaque()
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
             options: .defaultTap,
-            eventsOfInterest: mask,
+            eventsOfInterest: Self.eventMask,
             callback: bonkEventTapCallback,
             userInfo: userInfo
         ) else {
@@ -228,6 +224,14 @@ public final class InputInterceptor: InputIntercepting {
                 return
             }
         }
+    }
+
+    // A listen-only probe on macOS 26.6.2 saw every system trackpad gesture reach a session
+    // tap as raw type 29 (gesture), 30 (Dock control) or 31 (fluid touch gesture).
+    static let gestureEventTypes: [UInt32] = [29, 30, 31]
+
+    static let eventMask = (eventTypes.map(\.rawValue) + gestureEventTypes).reduce(CGEventMask(0)) { partial, type in
+        partial | (CGEventMask(1) << CGEventMask(type))
     }
 
     private static let eventTypes: [CGEventType] = [
