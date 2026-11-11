@@ -1,4 +1,6 @@
+import AppKit
 import BonkCore
+import Carbon.HIToolbox
 import SwiftUI
 
 struct SettingsView: View {
@@ -10,6 +12,7 @@ struct SettingsView: View {
     @State private var savedKeySuffix: String?
     @State private var keyConfirmation: String?
     @State private var cameraAuthorized: Bool
+    @StateObject private var recorder: ShortcutRecorder
 
     init(model: AppModel) {
         self.model = model
@@ -19,6 +22,7 @@ struct SettingsView: View {
         self.guardController = model.guardController
         _savedKeySuffix = State(initialValue: settings.jevAPIKey.map { String($0.suffix(4)) })
         _cameraAuthorized = State(initialValue: model.camera.isAuthorized)
+        _recorder = StateObject(wrappedValue: ShortcutRecorder(model: model))
     }
 
     var body: some View {
@@ -165,7 +169,20 @@ struct SettingsView: View {
             }
 
             Section("Shortcut") {
-                LabeledContent("Start Bonk", value: settings.shortcut.displayString)
+                LabeledContent("Start Bonk") {
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Button(recorder.isRecording ? "Type a shortcut…" : settings.shortcut.displayString) {
+                            recorder.isRecording ? recorder.stop() : recorder.start()
+                        }
+                        .help("Click, then press a new shortcut with ⌘ or ⌃. Esc cancels.")
+
+                        if let message = recorder.message ?? model.shortcutError {
+                            Text(message)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+                    }
+                }
             }
 
             if let error = settings.lastError {
@@ -229,5 +246,81 @@ struct SettingsView: View {
         savedKeySuffix = nil
         keyConfirmation = "Removed"
         apiKey = ""
+    }
+}
+
+/// Records a new start shortcut. While recording, every key is consumed and the hot key is
+/// suspended; it resumes only on the recorded key's release or on cancel, so a held key never starts Bonk.
+@MainActor
+private final class ShortcutRecorder: ObservableObject {
+    @Published private(set) var isRecording = false
+    @Published private(set) var message: String?
+
+    private let model: AppModel
+    private var keyMonitor: Any?
+    private var resignObserver: NSObjectProtocol?
+    private var pending: Shortcut?
+
+    init(model: AppModel) {
+        self.model = model
+    }
+
+    func start() {
+        guard !isRecording else { return }
+        model.suspendShortcut()
+        isRecording = true
+        message = nil
+        pending = nil
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
+            self?.handle(event)
+            return nil
+        }
+        resignObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResignKeyNotification,
+            object: NSApp.keyWindow,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.stop() }
+        }
+    }
+
+    func stop() {
+        guard isRecording else { return }
+        if let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
+        }
+        if let resignObserver {
+            NotificationCenter.default.removeObserver(resignObserver)
+        }
+        keyMonitor = nil
+        resignObserver = nil
+        pending = nil
+        isRecording = false
+        model.resumeShortcut()
+    }
+
+    private func handle(_ event: NSEvent) {
+        if event.type == .keyUp {
+            guard let pending, event.keyCode == pending.keyCode else { return }
+            model.setShortcut(pending)
+            stop()
+            return
+        }
+
+        guard !event.isARepeat, pending == nil else { return }
+        guard event.keyCode != UInt16(kVK_Escape) else {
+            stop()
+            return
+        }
+        do {
+            pending = try Shortcut.recorded(
+                keyCode: event.keyCode,
+                modifiers: event.modifierFlags,
+                characters: event.characters(byApplyingModifiers: [])
+            )
+            message = nil
+        } catch {
+            message = error.localizedDescription
+        }
     }
 }
