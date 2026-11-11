@@ -10,7 +10,7 @@ struct SettingsView: View {
     @ObservedObject private var guardController: GuardController
     @State private var apiKey = ""
     @State private var savedKeySuffix: String?
-    @State private var keyConfirmation: String?
+    @State private var isReplacingKey = false
     @State private var cameraAuthorized: Bool
     @StateObject private var recorder: ShortcutRecorder
 
@@ -84,60 +84,38 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Jev reaction engine") {
+            Section {
                 Toggle("Enable Jev character direction", isOn: $settings.aiReactionsEnabled)
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Jev API key")
-                        .font(.headline)
 
-                    HStack(spacing: 8) {
-                        Image(systemName: savedKeySuffix == nil ? "key.horizontal" : "checkmark.seal.fill")
-                            .foregroundStyle(savedKeySuffix == nil ? Color.secondary : Color.green)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(savedKeySuffix == nil ? "No key saved" : "Key saved securely")
-                                .font(.subheadline.weight(.semibold))
-                            if let savedKeySuffix {
-                                Text("Ending in ••••\(savedKeySuffix)")
-                                    .font(.system(.caption, design: .monospaced))
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        (savedKeySuffix == nil ? Color.secondary : Color.green).opacity(0.08),
-                        in: RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .stroke(
-                                (savedKeySuffix == nil ? Color.secondary : Color.green).opacity(0.2),
-                                lineWidth: 1
-                            )
-                    )
-
-                    SecureField("Paste TypeSafe API key", text: $apiKey)
-                        .textFieldStyle(.roundedBorder)
-
-                    HStack {
-                        Button("Save Key") { saveAPIKey() }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                        if savedKeySuffix != nil {
+                if let savedKeySuffix, !isReplacingKey {
+                    LabeledContent("TypeSafe API key") {
+                        HStack {
+                            Text("••••\(savedKeySuffix)")
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                            Button("Replace…") { isReplacingKey = true }
                             Button("Remove", role: .destructive) { removeAPIKey() }
                         }
-
-                        if let keyConfirmation {
-                            Text(keyConfirmation)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.green)
+                    }
+                } else {
+                    HStack {
+                        SecureField("TypeSafe API key", text: $apiKey, prompt: Text("Paste TypeSafe API key"))
+                            .labelsHidden()
+                        if savedKeySuffix != nil {
+                            Button("Cancel") {
+                                apiKey = ""
+                                isReplacingKey = false
+                            }
                         }
+                        Button("Save") { saveAPIKey() }
+                            .keyboardShortcut(.defaultAction)
+                            .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
-
-                Text("Only aggregated interaction categories and counts are sent. Typed content and screen contents never leave the Mac.")
+            } header: {
+                Text("Jev reaction engine")
+            } footer: {
+                Text("Jev runs on TypeSafe AI. Only aggregated interaction categories and counts are sent. Typed content and screen contents never leave the Mac.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -231,12 +209,9 @@ struct SettingsView: View {
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         settings.saveJevAPIKey(trimmed)
-        guard settings.lastError == nil else {
-            keyConfirmation = nil
-            return
-        }
+        guard settings.lastError == nil else { return }
         savedKeySuffix = String(trimmed.suffix(4))
-        keyConfirmation = "Saved"
+        isReplacingKey = false
         apiKey = ""
     }
 
@@ -244,7 +219,6 @@ struct SettingsView: View {
         settings.saveJevAPIKey("")
         guard settings.lastError == nil else { return }
         savedKeySuffix = nil
-        keyConfirmation = "Removed"
         apiKey = ""
     }
 }
