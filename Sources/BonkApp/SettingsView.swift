@@ -244,7 +244,7 @@ private final class ShortcutRecorder: ObservableObject {
         isRecording = true
         message = nil
         pending = nil
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp, .leftMouseDown]) { [weak self] event in
             self?.handle(event)
             return nil
         }
@@ -273,6 +273,11 @@ private final class ShortcutRecorder: ObservableObject {
     }
 
     private func handle(_ event: NSEvent) {
+        // The click is consumed too, so a click on the record button cannot restart recording on mouse-up.
+        if event.type == .leftMouseDown {
+            stop()
+            return
+        }
         if event.type == .keyUp {
             guard let pending, event.keyCode == pending.keyCode else { return }
             model.setShortcut(pending)
