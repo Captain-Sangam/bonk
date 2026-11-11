@@ -1,4 +1,6 @@
+import AppKit
 import BonkCore
+import Carbon.HIToolbox
 import SwiftUI
 
 struct SettingsView: View {
@@ -8,8 +10,9 @@ struct SettingsView: View {
     @ObservedObject private var guardController: GuardController
     @State private var apiKey = ""
     @State private var savedKeySuffix: String?
-    @State private var keyConfirmation: String?
+    @State private var isReplacingKey = false
     @State private var cameraAuthorized: Bool
+    @StateObject private var recorder: ShortcutRecorder
 
     init(model: AppModel) {
         self.model = model
@@ -19,6 +22,7 @@ struct SettingsView: View {
         self.guardController = model.guardController
         _savedKeySuffix = State(initialValue: settings.jevAPIKey.map { String($0.suffix(4)) })
         _cameraAuthorized = State(initialValue: model.camera.isAuthorized)
+        _recorder = StateObject(wrappedValue: ShortcutRecorder(model: model))
     }
 
     var body: some View {
@@ -80,60 +84,38 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Jev reaction engine") {
+            Section {
                 Toggle("Enable Jev character direction", isOn: $settings.aiReactionsEnabled)
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Jev API key")
-                        .font(.headline)
 
-                    HStack(spacing: 8) {
-                        Image(systemName: savedKeySuffix == nil ? "key.horizontal" : "checkmark.seal.fill")
-                            .foregroundStyle(savedKeySuffix == nil ? Color.secondary : Color.green)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(savedKeySuffix == nil ? "No key saved" : "Key saved securely")
-                                .font(.subheadline.weight(.semibold))
-                            if let savedKeySuffix {
-                                Text("Ending in ••••\(savedKeySuffix)")
-                                    .font(.system(.caption, design: .monospaced))
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        (savedKeySuffix == nil ? Color.secondary : Color.green).opacity(0.08),
-                        in: RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .stroke(
-                                (savedKeySuffix == nil ? Color.secondary : Color.green).opacity(0.2),
-                                lineWidth: 1
-                            )
-                    )
-
-                    SecureField("Paste TypeSafe API key", text: $apiKey)
-                        .textFieldStyle(.roundedBorder)
-
-                    HStack {
-                        Button("Save Key") { saveAPIKey() }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                        if savedKeySuffix != nil {
+                if let savedKeySuffix, !isReplacingKey {
+                    LabeledContent("TypeSafe API key") {
+                        HStack {
+                            Text("••••\(savedKeySuffix)")
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                            Button("Replace…") { isReplacingKey = true }
                             Button("Remove", role: .destructive) { removeAPIKey() }
                         }
-
-                        if let keyConfirmation {
-                            Text(keyConfirmation)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.green)
+                    }
+                } else {
+                    HStack {
+                        SecureField("TypeSafe API key", text: $apiKey, prompt: Text("Paste TypeSafe API key"))
+                            .labelsHidden()
+                        if savedKeySuffix != nil {
+                            Button("Cancel") {
+                                apiKey = ""
+                                isReplacingKey = false
+                            }
                         }
+                        Button("Save") { saveAPIKey() }
+                            .keyboardShortcut(.defaultAction)
+                            .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
-
-                Text("Only aggregated interaction categories and counts are sent. Typed content and screen contents never leave the Mac.")
+            } header: {
+                Text("Jev reaction engine")
+            } footer: {
+                Text("Jev runs on TypeSafe AI. Only aggregated interaction categories and counts are sent. Typed content and screen contents never leave the Mac.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -165,15 +147,19 @@ struct SettingsView: View {
             }
 
             Section("Shortcut") {
-                HStack {
-                    Text("Toggle Bonk")
-                    Spacer()
-                    Text("⇧⌘")
-                    TextField("B", text: $settings.shortcutKey)
-                        .frame(width: 36)
-                        .onChange(of: settings.shortcutKey) { value in
-                            settings.shortcutKey = String(value.uppercased().prefix(1))
+                LabeledContent("Start Bonk") {
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Button(recorder.isRecording ? "Type a shortcut…" : settings.shortcut.displayString) {
+                            recorder.isRecording ? recorder.stop() : recorder.start()
                         }
+                        .help("Click, then press a new shortcut with ⌘ or ⌃. Esc cancels.")
+
+                        if let message = recorder.message ?? model.shortcutError {
+                            Text(message)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+                    }
                 }
             }
 
@@ -184,7 +170,6 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .padding()
         .frame(width: 500, height: 640)
     }
 
@@ -223,12 +208,9 @@ struct SettingsView: View {
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         settings.saveJevAPIKey(trimmed)
-        guard settings.lastError == nil else {
-            keyConfirmation = nil
-            return
-        }
+        guard settings.lastError == nil else { return }
         savedKeySuffix = String(trimmed.suffix(4))
-        keyConfirmation = "Saved"
+        isReplacingKey = false
         apiKey = ""
     }
 
@@ -236,7 +218,88 @@ struct SettingsView: View {
         settings.saveJevAPIKey("")
         guard settings.lastError == nil else { return }
         savedKeySuffix = nil
-        keyConfirmation = "Removed"
         apiKey = ""
+    }
+}
+
+/// Records a new start shortcut. While recording, every key is consumed and the hot key is
+/// suspended; it resumes only on the recorded key's release or on cancel, so a held key never starts Bonk.
+@MainActor
+private final class ShortcutRecorder: ObservableObject {
+    @Published private(set) var isRecording = false
+    @Published private(set) var message: String?
+
+    private let model: AppModel
+    private var keyMonitor: Any?
+    private var resignObserver: NSObjectProtocol?
+    private var pending: Shortcut?
+
+    init(model: AppModel) {
+        self.model = model
+    }
+
+    func start() {
+        guard !isRecording else { return }
+        model.suspendShortcut()
+        isRecording = true
+        message = nil
+        pending = nil
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp, .leftMouseDown]) { [weak self] event in
+            self?.handle(event)
+            return nil
+        }
+        resignObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResignKeyNotification,
+            object: NSApp.keyWindow,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.stop() }
+        }
+    }
+
+    func stop() {
+        guard isRecording else { return }
+        if let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
+        }
+        if let resignObserver {
+            NotificationCenter.default.removeObserver(resignObserver)
+        }
+        keyMonitor = nil
+        resignObserver = nil
+        pending = nil
+        isRecording = false
+        model.resumeShortcut()
+    }
+
+    private func handle(_ event: NSEvent) {
+        // The click is consumed too, so a click on the record button cannot restart recording on mouse-up.
+        if event.type == .leftMouseDown {
+            stop()
+            return
+        }
+        if event.type == .keyUp {
+            guard let pending, event.keyCode == pending.keyCode else { return }
+            model.setShortcut(pending)
+            stop()
+            return
+        }
+
+        guard !event.isARepeat else { return }
+        guard event.keyCode != UInt16(kVK_Escape) else {
+            stop()
+            return
+        }
+        guard pending == nil else { return }
+        do {
+            pending = try Shortcut.recorded(
+                keyCode: event.keyCode,
+                modifiers: event.modifierFlags,
+                characters: event.characters(byApplyingModifiers: [])
+            )
+            message = nil
+        } catch {
+            message = error.localizedDescription
+        }
     }
 }

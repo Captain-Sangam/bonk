@@ -10,6 +10,24 @@ public final class InputInterceptor: InputIntercepting {
 
     public private(set) var isRunning = false
 
+    /// While true, ordinary input passes unchanged so the owner can use the macOS unlock sheet;
+    /// gestures are still dropped and a disabled tap is turned back on instead of failing open.
+    /// Turning it off re-arms the tap, or reports `eventTapDisabled` when that fails.
+    public var allowsOwnerInput = false {
+        didSet {
+            guard oldValue, !allowsOwnerInput, let eventTap else { return }
+            resetTracking()
+            CGEvent.tapEnable(tap: eventTap, enable: true)
+            guard !CGEvent.tapIsEnabled(tap: eventTap) else { return }
+            stop()
+            do {
+                try start(promptForPermission: false)
+            } catch {
+                onFailure?(.eventTapDisabled)
+            }
+        }
+    }
+
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var watchdog: Timer?
@@ -44,16 +62,12 @@ public final class InputInterceptor: InputIntercepting {
             throw BonkError.accessibilityPermissionMissing
         }
 
-        let mask = Self.eventTypes.reduce(CGEventMask(0)) { partial, type in
-            partial | (CGEventMask(1) << CGEventMask(type.rawValue))
-        }
-
         let userInfo = Unmanaged.passUnretained(self).toOpaque()
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
             options: .defaultTap,
-            eventsOfInterest: mask,
+            eventsOfInterest: Self.eventMask,
             callback: bonkEventTapCallback,
             userInfo: userInfo
         ) else {
@@ -65,7 +79,7 @@ public final class InputInterceptor: InputIntercepting {
         runLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
-        virtualMouseLocation = NSEvent.mouseLocation
+        resetTracking()
         isRunning = true
         startWatchdog()
     }
@@ -85,6 +99,7 @@ public final class InputInterceptor: InputIntercepting {
         runLoopSource = nil
         eventTap = nil
         isRunning = false
+        allowsOwnerInput = false
         lastMovementSignalDate = nil
         virtualMouseLocation = nil
         pendingMovementDeltaX = 0
@@ -92,13 +107,29 @@ public final class InputInterceptor: InputIntercepting {
         escapeSequenceDetector.reset()
     }
 
-    fileprivate func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+    private func resetTracking() {
+        virtualMouseLocation = NSEvent.mouseLocation
+        lastMovementSignalDate = nil
+        pendingMovementDeltaX = 0
+        pendingMovementDeltaY = 0
+        escapeSequenceDetector.reset()
+    }
+
+    func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            if allowsOwnerInput {
+                if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: true) }
+                return Unmanaged.passUnretained(event)
+            }
             isRunning = false
             DispatchQueue.main.async { [weak self] in
                 self?.onFailure?(.eventTapDisabled)
             }
             return Unmanaged.passUnretained(event)
+        }
+
+        if allowsOwnerInput {
+            return Self.gestureEventTypes.contains(type.rawValue) ? nil : Unmanaged.passUnretained(event)
         }
 
         let now = Date()
@@ -223,11 +254,23 @@ public final class InputInterceptor: InputIntercepting {
         watchdog = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             guard let self, self.isRunning, let tap = self.eventTap else { return }
             guard CGEvent.tapIsEnabled(tap: tap) else {
+                if self.allowsOwnerInput {
+                    CGEvent.tapEnable(tap: tap, enable: true)
+                    return
+                }
                 self.isRunning = false
                 self.onFailure?(.eventTapDisabled)
                 return
             }
         }
+    }
+
+    // A listen-only probe on macOS 26.6.2 saw every system trackpad gesture reach a session
+    // tap as raw type 29 (gesture), 30 (Dock control) or 31 (fluid touch gesture).
+    static let gestureEventTypes: [UInt32] = [29, 30, 31]
+
+    static let eventMask = (eventTypes.map(\.rawValue) + gestureEventTypes).reduce(CGEventMask(0)) { partial, type in
+        partial | (CGEventMask(1) << CGEventMask(type))
     }
 
     private static let eventTypes: [CGEventType] = [

@@ -85,15 +85,11 @@ private final class SettingsWindowController {
             return
         }
 
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 500),
-            styleMask: [.titled, .closable, .miniaturizable],
-            backing: .buffered,
-            defer: false
-        )
+        // The hosting controller sizes the window from the view's frame, so the size lives in one place.
+        let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model)))
+        window.styleMask = [.titled, .closable, .miniaturizable]
         window.title = "Bonk Settings"
         window.isReleasedWhenClosed = false
-        window.contentView = NSHostingView(rootView: SettingsView(model: model))
         window.center()
         window.makeKeyAndOrderFront(nil)
         self.window = window
@@ -182,7 +178,7 @@ private struct MenuBarContent: View {
             Button("Bonk this Mac") {
                 model.toggleGuard()
             }
-            .keyboardShortcut(shortcutEquivalent, modifiers: [.command, .shift])
+            .keyboardShortcut(shortcutEquivalent, modifiers: shortcutModifiers)
 
             Picker("Bonk Mode", selection: $settings.bonkMode) {
                 ForEach(BonkMode.allCases, id: \.self) { mode in
@@ -247,6 +243,16 @@ private struct MenuBarContent: View {
     }
 
     private var shortcutEquivalent: KeyEquivalent {
-        KeyEquivalent(settings.shortcutKey.lowercased().first ?? "b")
+        KeyEquivalent(settings.shortcut.label.lowercased().first ?? "b")
+    }
+
+    private var shortcutModifiers: EventModifiers {
+        let flags = settings.shortcut.modifierFlags
+        var modifiers: EventModifiers = []
+        if flags.contains(.control) { modifiers.insert(.control) }
+        if flags.contains(.option) { modifiers.insert(.option) }
+        if flags.contains(.shift) { modifiers.insert(.shift) }
+        if flags.contains(.command) { modifiers.insert(.command) }
+        return modifiers
     }
 }

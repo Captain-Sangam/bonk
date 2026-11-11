@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import Combine
 import Foundation
 
@@ -10,7 +11,10 @@ public final class AppModel: ObservableObject {
     public let guardController: GuardController
     public let camera: IntrusionCamera
 
-    private let shortcutMonitor = ShortcutMonitor()
+    /// Why the saved shortcut is not registered, shown under the Settings shortcut row.
+    @Published public private(set) var shortcutError: String?
+
+    private lazy var shortcutMonitor = ShortcutMonitor { [weak self] in self?.toggleGuard() }
     private var cancellables: Set<AnyCancellable> = []
     private var hasStarted = false
 
@@ -49,15 +53,8 @@ public final class AppModel: ObservableObject {
     public func start() {
         guard !hasStarted else { return }
         hasStarted = true
-        configureShortcut(key: settings.shortcutKey)
-
-        settings.$shortcutKey
-            .removeDuplicates()
-            .dropFirst()
-            .sink { [weak self] key in
-                self?.configureShortcut(key: key)
-            }
-            .store(in: &cancellables)
+        let status = shortcutMonitor.register(settings.shortcut)
+        shortcutError = status == noErr ? nil : Self.registrationError(settings.shortcut, status)
 
         NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)
             .sink { [weak self] _ in self?.shutdown() }
@@ -75,9 +72,31 @@ public final class AppModel: ObservableObject {
         cancellables.removeAll()
     }
 
-    private func configureShortcut(key: String) {
-        shortcutMonitor.start(key: key) { [weak self] in
-            self?.toggleGuard()
+    /// Registers `shortcut` first and saves it only on success; on failure the previous one stays.
+    public func setShortcut(_ shortcut: Shortcut) {
+        let previous = settings.shortcut
+        let status = shortcutMonitor.register(shortcut)
+        guard status == noErr else {
+            _ = shortcutMonitor.register(previous)
+            shortcutError = Self.registrationError(shortcut, status)
+            return
         }
+        settings.shortcut = shortcut
+        shortcutError = nil
+    }
+
+    public func suspendShortcut() {
+        shortcutMonitor.suspend()
+    }
+
+    public func resumeShortcut() {
+        shortcutMonitor.resume()
+    }
+
+    private static func registrationError(_ shortcut: Shortcut, _ status: OSStatus) -> String {
+        if status == eventHotKeyExistsErr {
+            return "\(shortcut.displayString) is already used by another app."
+        }
+        return "\(shortcut.displayString) could not be registered (error \(status))."
     }
 }

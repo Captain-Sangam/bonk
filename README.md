@@ -25,7 +25,7 @@ cd bonk
 make export
 ```
 
-Launch **Bonk** from Spotlight or Applications and grant Accessibility permission in **System Settings → Privacy & Security → Accessibility**. Activate it from the menu-bar paw or `⇧⌘B`; press `Esc` twice to start macOS owner authentication and unlock. Choose the bonk mode and turn on the optional intrusion camera in **Settings**; the camera asks for its own permission the first time you enable it.
+Launch **Bonk** from Spotlight or Applications and grant Accessibility permission in **System Settings → Privacy & Security → Accessibility**. Activate it from the menu-bar paw or your shortcut (default `⇧⌘B`), changeable in **Settings**; press `Esc` twice to start macOS owner authentication and unlock. Choose the bonk mode and turn on the optional intrusion camera in **Settings**; the camera asks for its own permission the first time you enable it.
 
 `make export` validates, packages, and installs the app into `/Applications` or `~/Applications`. Use `make run` to build and launch from `dist/`, or `make app` to package only. See [Getting started](docs/getting-started.md) for permissions, unlock timing, and optional Jev setup.
 

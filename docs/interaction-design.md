@@ -4,7 +4,7 @@ Bonk protects a still-visible desktop without behaving like a conventional lock 
 
 ## Activate
 
-Choose **Bonk this Mac** from the menu-bar paw or use the configured `⇧⌘B` shortcut. Activation has no confirmation dialog. Bonk creates an overlay on every display for the selected mode, starts the keep-awake assertion, and then enables input interception.
+Choose **Bonk this Mac** from the menu-bar paw or use your shortcut (default `⇧⌘B`), changeable in Settings. Activation has no confirmation dialog. Bonk creates an overlay on every display for the selected mode, starts the keep-awake assertion, and then enables input interception.
 
 ## Bonk modes
 
@@ -14,7 +14,7 @@ Settings offers three modes, fixed for the duration of a guard session:
 - **Screen off** — opaque black on every display, so the Mac looks powered off; the fox, sounds, and Jev stay idle.
 - **Agents away-screen** — a minimal black screen on every display with a lock, an `AWAY` lockup, a "running agents" pill, an animated waveform, and the clock. It lists the running processes that match the agent names configured in Settings.
 
-Input blocking and the double-Escape unlock behave identically in every mode. The optional intrusion camera also applies to every mode: on a genuine failed unlock it saves one photo to `~/Pictures/Bonk/`, and the menu reports captured attempts after you unlock.
+Input blocking and the double-Escape unlock behave identically in every mode. System trackpad gestures (Spaces swipes, Mission Control, App Exposé, Launchpad, Show Desktop and Notification Centre) are blocked for the whole guarded session, including while the unlock sheet is showing. The optional intrusion camera also applies to every mode: on a genuine failed unlock it saves one photo to `~/Pictures/Bonk/`, and the menu reports captured attempts after you unlock.
 
 ## Guarded behavior
 
@@ -68,8 +68,8 @@ sequenceDiagram
 
 Holding Escape does not count because auto-repeat events are ignored. An intervening non-Escape key resets the sequence. Mouse movement, clicks, scrolling, ordinary typing, shortcuts, and reaction escalation cannot open the authentication prompt.
 
-During authentication, the event tap pauses and the overlay captures the desktop so macOS can accept Touch ID or its system-controlled fallback. Bonk never implements or stores an owner password.
+During authentication, the event tap passes ordinary input through (gestures stay blocked) and the overlay captures the desktop so macOS can accept Touch ID or its system-controlled fallback. Bonk never implements or stores an owner password.
 
 ## Settings feedback
 
-The Jev credential card shows one of two concrete states: **No key saved** or **Key saved securely**, including only the final four characters. Saving clears the field and shows a success acknowledgement. The full value stays in the macOS Keychain and is never displayed again.
+The TypeSafe API key area shows one state at a time: the saved key, masked to its final four characters, with **Replace…** and **Remove**; or a single entry field with **Save** (and **Cancel** when replacing). The old key stays until a new one is saved. The full value stays in the macOS Keychain and is never displayed again.

@@ -5,6 +5,8 @@ public protocol InputIntercepting: AnyObject {
     var onAuthenticationGesture: (() -> Void)? { get set }
     var onFailure: ((BonkError) -> Void)? { get set }
     var isRunning: Bool { get }
+    /// Pass-through while macOS owner authentication is showing; gestures stay blocked.
+    var allowsOwnerInput: Bool { get set }
 
     func start(promptForPermission: Bool) throws
     func stop()
