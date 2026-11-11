@@ -28,9 +28,11 @@ public final class AppModel: ObservableObject {
         ) {
             (settings.aiReactionsEnabled, settings.jevAPIKey)
         }
-        let overlayManager = OverlayManager(characterEngine: characterEngine) {
-            settings.agentPatternList
-        }
+        let overlayManager = OverlayManager(
+            characterEngine: characterEngine,
+            agentPatterns: { settings.agentPatternList },
+            awayName: { settings.awayName }
+        )
 
         let camera = IntrusionCamera()
 

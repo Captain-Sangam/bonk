@@ -76,9 +76,10 @@ public final class AgentMonitor: ObservableObject {
 }
 
 /// The locked "Waveform" away-screen: lock + AWAY wordmark + running pill + animated
-/// multi-harmonic waveform + clock + "Locked · back soon", on black. Rendered on every display.
+/// multi-harmonic waveform + clock + "<name> will be back soon", on black. Rendered on every display.
 struct AwayScreenView: View {
     @ObservedObject var monitor: AgentMonitor
+    let name: String
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var now = Date()
@@ -122,7 +123,7 @@ struct AwayScreenView: View {
                         .monospacedDigit()
                         .foregroundStyle(.white.opacity(0.92))
 
-                    Text("Locked · back soon")
+                    Text(footer)
                         .font(.system(size: 13 * scale, weight: .regular, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.32))
                 }
@@ -136,8 +137,8 @@ struct AwayScreenView: View {
     @ViewBuilder
     private func pill(scale: CGFloat) -> some View {
         let count = monitor.agents.count
-        let label = count == 0 ? "No agents running"
-            : "\(count) agent\(count == 1 ? "" : "s") running"
+        let label = count == 0 ? "All quiet"
+            : "\(count) agent\(count == 1 ? "" : "s") at work"
         HStack(spacing: 10 * scale) {
             if count > 0 {
                 PresenceDot(color: ok, reduceMotion: reduceMotion)
@@ -153,6 +154,11 @@ struct AwayScreenView: View {
         .overlay(
             Capsule().stroke((count == 0 ? Color.white.opacity(0.18) : ok.opacity(0.4)), lineWidth: 1)
         )
+    }
+
+    private var footer: String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Back soon" : "\(trimmed) will be back soon"
     }
 
     private var clockString: String {
