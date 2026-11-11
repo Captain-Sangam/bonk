@@ -102,6 +102,45 @@ final class GuardControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testAuthenticationKeepsTapRunningInPassThrough() async {
+        let fixture = makeFixture()
+        let authenticationStarted = expectation(description: "Owner authentication started")
+        var stopCountDuringAuthentication = -1
+        var passThroughDuringAuthentication = false
+        var overlayCapturingDuringAuthentication = false
+        fixture.authentication.onAuthenticate = {
+            stopCountDuringAuthentication = fixture.input.stopCount
+            passThroughDuringAuthentication = fixture.input.allowsOwnerInput
+            overlayCapturingDuringAuthentication = fixture.overlay.isCapturingInput
+            authenticationStarted.fulfill()
+        }
+        fixture.controller.activate()
+
+        fixture.input.onAuthenticationGesture?()
+        await fulfillment(of: [authenticationStarted], timeout: 2.0)
+
+        XCTAssertEqual(stopCountDuringAuthentication, 0)
+        XCTAssertTrue(passThroughDuringAuthentication)
+        XCTAssertTrue(overlayCapturingDuringAuthentication)
+    }
+
+    @MainActor
+    func testFailedRearmAfterAuthenticationFailureFailsOpen() async throws {
+        let fixture = makeFixture()
+        fixture.input.failsRearm = true
+        fixture.authentication.error = BonkError.authenticationFailed("nope")
+        fixture.controller.activate()
+
+        fixture.input.onAuthenticationGesture?()
+        try await poll { fixture.authentication.callCount == 1 && fixture.controller.status == .idle }
+
+        XCTAssertEqual(fixture.controller.status, .idle)
+        XCTAssertFalse(fixture.input.isRunning)
+        XCTAssertEqual(fixture.overlay.hideCount, 1)
+        XCTAssertNotNil(fixture.controller.lastError)
+    }
+
+    @MainActor
     func testRealReactionPacingAndRestSurviveAuthenticationFailure() async throws {
         let character = CharacterEngine { false }
         let reactions = ReactionController(characterEngine: character, director: JevDirectorMonitor(),
@@ -122,8 +161,9 @@ final class GuardControllerTests: XCTestCase {
         }
         XCTAssertEqual(authentication.callCount, 1)
         XCTAssertEqual(guardController.status, .armed)
-        XCTAssertEqual(input.startCount, 2)
+        XCTAssertEqual(input.startCount, 1)
         XCTAssertTrue(input.isRunning)
+        XCTAssertFalse(input.allowsOwnerInput)
         XCTAssertEqual(character.presentation.state, .sleeping)
         XCTAssertNil(character.presentation.message)
         input.onSignal?(InteractionSignal(kind: .mouseMovement))
@@ -252,8 +292,15 @@ private final class FakeInputInterceptor: InputIntercepting {
     var onFailure: ((BonkError) -> Void)?
     private(set) var isRunning = false
     var startError: Error?
+    var failsRearm = false
     private(set) var startCount = 0
     private(set) var stopCount = 0
+
+    var allowsOwnerInput = false {
+        didSet {
+            if oldValue, !allowsOwnerInput, failsRearm { isRunning = false }
+        }
+    }
 
     func start(promptForPermission: Bool) throws {
         startCount += 1
@@ -264,6 +311,7 @@ private final class FakeInputInterceptor: InputIntercepting {
     func stop() {
         stopCount += 1
         isRunning = false
+        allowsOwnerInput = false
     }
 }
 

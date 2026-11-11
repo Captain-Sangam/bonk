@@ -257,7 +257,7 @@ internal enum PolishChecks {
             if authentication.calls == 1 && guardController.status == .armed { break }
             try await Task.sleep(nanoseconds: 10_000_000)
         }
-        try require(authentication.calls == 1 && guardController.status == .armed && input.isRunning && input.starts == 2, "Authentication failure did not resume guard")
+        try require(authentication.calls == 1 && guardController.status == .armed && input.isRunning && input.starts == 1 && !input.allowsOwnerInput, "Authentication failure did not resume guard")
         try require(character.presentation.state == .sleeping && character.presentation.message == nil, "Authentication resume lost idle timer")
         input.onSignal?(InteractionSignal(kind: .mouseMovement))
         await Task.yield()
@@ -325,6 +325,7 @@ private final class PolishInput: InputIntercepting {
     var onAuthenticationGesture: (() -> Void)?
     var onFailure: ((BonkError) -> Void)?
     private(set) var isRunning = false
+    var allowsOwnerInput = false
     private(set) var starts = 0
     func start(promptForPermission: Bool) throws { isRunning = true; starts += 1 }
     func stop() { isRunning = false }

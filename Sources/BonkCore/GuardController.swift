@@ -124,9 +124,9 @@ public final class GuardController: ObservableObject {
 
                 // Password fallback must be able to receive keyboard input. The
                 // transparent overlay captures the desktop while macOS owns the
-                // authentication sheet above it.
-                self.inputInterceptor.stop()
+                // authentication sheet above it, and the tap keeps dropping gestures.
                 self.overlayManager.setCapturingInput(true)
+                self.inputInterceptor.allowsOwnerInput = true
                 self.status = .authenticating
 
                 try await self.authenticationManager.authenticateOwner()
@@ -165,14 +165,14 @@ public final class GuardController: ObservableObject {
     }
 
     private func resumeAfterAuthenticationFailure() {
+        inputInterceptor.allowsOwnerInput = false
         overlayManager.setCapturingInput(false)
-        do {
-            try inputInterceptor.start(promptForPermission: false)
-            status = .armed
-            authenticationTask = nil
-        } catch {
-            failOpen(error.localizedDescription)
+        guard inputInterceptor.isRunning else {
+            failOpen(BonkError.eventTapDisabled.localizedDescription)
+            return
         }
+        status = .armed
+        authenticationTask = nil
     }
 
     private func failOpen(_ message: String) {
