@@ -85,15 +85,11 @@ private final class SettingsWindowController {
             return
         }
 
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 500),
-            styleMask: [.titled, .closable, .miniaturizable],
-            backing: .buffered,
-            defer: false
-        )
+        // The hosting controller sizes the window from the view's frame, so the size lives in one place.
+        let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model)))
+        window.styleMask = [.titled, .closable, .miniaturizable]
         window.title = "Bonk Settings"
         window.isReleasedWhenClosed = false
-        window.contentView = NSHostingView(rootView: SettingsView(model: model))
         window.center()
         window.makeKeyAndOrderFront(nil)
         self.window = window
