@@ -22,8 +22,9 @@ public final class SettingsStore: ObservableObject {
         didSet { defaults.set(onboardingComplete, forKey: Keys.onboardingComplete) }
     }
 
-    @Published public var shortcutKey: String {
-        didSet { defaults.set(shortcutKey, forKey: Keys.shortcutKey) }
+    /// Set through `AppModel.setShortcut`, which saves only a shortcut that registered.
+    @Published public internal(set) var shortcut: Shortcut {
+        didSet { defaults.set(try? JSONEncoder().encode(shortcut), forKey: Keys.shortcut) }
     }
 
     @Published public var bonkMode: BonkMode {
@@ -63,7 +64,11 @@ public final class SettingsStore: ObservableObject {
         soundsEnabled = defaults.object(forKey: Keys.soundsEnabled) as? Bool ?? true
         aiReactionsEnabled = defaults.object(forKey: Keys.aiReactionsEnabled) as? Bool ?? false
         onboardingComplete = defaults.object(forKey: Keys.onboardingComplete) as? Bool ?? false
-        shortcutKey = defaults.string(forKey: Keys.shortcutKey) ?? "B"
+        if let data = defaults.data(forKey: Keys.shortcut) {
+            shortcut = (try? JSONDecoder().decode(Shortcut.self, from: data)) ?? .defaultShortcut
+        } else {
+            shortcut = Shortcut(legacyLetter: defaults.string(forKey: Keys.legacyShortcutKey))
+        }
         bonkMode = (defaults.string(forKey: Keys.bonkMode)).flatMap(BonkMode.init(rawValue:)) ?? .classic
         cameraMonitorEnabled = defaults.object(forKey: Keys.cameraMonitorEnabled) as? Bool ?? false
         agentPatterns = defaults.string(forKey: Keys.agentPatterns) ?? Self.defaultAgentPatterns
@@ -120,7 +125,8 @@ public final class SettingsStore: ObservableObject {
         static let soundsEnabled = "soundsEnabled"
         static let aiReactionsEnabled = "aiReactionsEnabled"
         static let onboardingComplete = "onboardingComplete"
-        static let shortcutKey = "shortcutKey"
+        static let shortcut = "shortcut"
+        static let legacyShortcutKey = "shortcutKey"
         static let bonkMode = "bonkMode"
         static let cameraMonitorEnabled = "cameraMonitorEnabled"
         static let agentPatterns = "agentPatterns"

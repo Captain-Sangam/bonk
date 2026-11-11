@@ -182,7 +182,7 @@ private struct MenuBarContent: View {
             Button("Bonk this Mac") {
                 model.toggleGuard()
             }
-            .keyboardShortcut(shortcutEquivalent, modifiers: [.command, .shift])
+            .keyboardShortcut(shortcutEquivalent, modifiers: shortcutModifiers)
 
             Picker("Bonk Mode", selection: $settings.bonkMode) {
                 ForEach(BonkMode.allCases, id: \.self) { mode in
@@ -247,6 +247,16 @@ private struct MenuBarContent: View {
     }
 
     private var shortcutEquivalent: KeyEquivalent {
-        KeyEquivalent(settings.shortcutKey.lowercased().first ?? "b")
+        KeyEquivalent(settings.shortcut.label.lowercased().first ?? "b")
+    }
+
+    private var shortcutModifiers: EventModifiers {
+        let flags = settings.shortcut.modifierFlags
+        var modifiers: EventModifiers = []
+        if flags.contains(.control) { modifiers.insert(.control) }
+        if flags.contains(.option) { modifiers.insert(.option) }
+        if flags.contains(.shift) { modifiers.insert(.shift) }
+        if flags.contains(.command) { modifiers.insert(.command) }
+        return modifiers
     }
 }

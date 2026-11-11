@@ -165,16 +165,7 @@ struct SettingsView: View {
             }
 
             Section("Shortcut") {
-                HStack {
-                    Text("Toggle Bonk")
-                    Spacer()
-                    Text("⇧⌘")
-                    TextField("B", text: $settings.shortcutKey)
-                        .frame(width: 36)
-                        .onChange(of: settings.shortcutKey) { value in
-                            settings.shortcutKey = String(value.uppercased().prefix(1))
-                        }
-                }
+                LabeledContent("Start Bonk", value: settings.shortcut.displayString)
             }
 
             if let error = settings.lastError {
