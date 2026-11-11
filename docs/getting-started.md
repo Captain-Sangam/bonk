@@ -24,7 +24,7 @@ Use `make run` to build and launch directly from `dist/` without installing, or 
 
 On first launch, grant Bonk access under **System Settings → Privacy & Security → Accessibility**. If macOS retains permission for an earlier build, disable and re-enable the entry.
 
-Activate Bonk from the menu-bar paw with **Bonk this Mac** or the configured `⇧⌘B` shortcut. To unlock, press `Esc` twice within 650 milliseconds; holding the key does not count. macOS then handles owner authentication.
+Activate Bonk from the menu-bar paw with **Bonk this Mac** or your shortcut (default `⇧⌘B`), changeable in **Settings**. To unlock, press `Esc` twice within 650 milliseconds; holding the key does not count. macOS then handles owner authentication.
 
 ## Jev reaction engine
 
