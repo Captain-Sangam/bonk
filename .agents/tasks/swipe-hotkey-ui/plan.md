@@ -378,3 +378,41 @@ It saw none of 18–20, 28 or 32–34. Those numbers are AppKit-only meanings th
 - **Not built:**
   - `ShortcutMonitor` has no `deinit`. The Carbon handler holds an unretained pointer; `AppModel` lives for the whole app and calls `stop()` on shutdown.
   - Keypad digits pass validation as printable. The menu then shows the main-row digit.
+
+## Review (2026-11-11)
+
+Cross-reviewed at `bdd2113`. Two fixes were applied in `3581354` and `6ddae3f`, and the full report is in `review.md`.
+
+### Plan amendments
+
+- **Decision 6.** The rationale that exclusive registration covers the practical cases is wrong for menu key equivalents. Exclusive registration does not detect them, so standard command shortcuts such as ⌘C, ⌘V, ⌘W and ⌘Q can be recorded (known issue below).
+- **Decision 6.** Recording also stops on a mouse-down anywhere else in the Settings window, and that click is consumed. Escape cancels even while a key is held.
+
+### Known issues accepted
+
+Scores are likelihood × severity.
+
+- **Standard command shortcuts.** ⌘C, ⌘V, ⌘W, ⌘Q and similar can be recorded and take that command from every app. 2 × 5 = 10.
+- **Unvalidated decoded shortcut.** A stored shortcut that decodes but is invalid is registered without validation (`SettingsStore.swift:67-68`). 1 × 6 = 6.
+- **Double fail-open.** After a failed re-arm, `failOpen` can run twice; the queued call could end a session started within one main-actor hop. 1 × 5 = 5.
+- **Silent restore failure.** Restoring the previous shortcut after a recorder cancel or a failed change discards its result. 1 × 4 = 4.
+- **Stale unlock task.** After a fail-open while the unlock sheet shows, that sheet's later Cancel acts on a new session. This existed before the change. 1 × 5 = 5.
+- **⌘ß label.** ⌘ß gets the label "SS" on German layouts. 1 × 2 = 2.
+
+### Closing check at `6ddae3f`
+
+- **AC1:** delivered in code. The manual gesture check is the release gate.
+- **AC2:** delivered in code. Manual check open.
+- **AC3:** delivered.
+- **AC4:** delivered and tested.
+- **AC5:** delivered in code. Manual check open.
+- **AC6:** delivered.
+- **AC7:** delivered in code, including both recorder fixes. Manual check open.
+- **AC8:** delivered and tested.
+- **AC9:** delivered in code. Screenshot open.
+- **AC10:** delivered in code. Screenshot open.
+
+**Owner's manual check (2026-11-12).** The owner tried the built app and reported that gestures are blocked, the Settings page looks good and the shortcut works. That closes the release gate for criterion 1, and covers criteria 5, 9 and 10. Not reported either way:
+- gestures while the unlock sheet is showing (criterion 2);
+- Touch ID, a wrong password and "Keep Bonk On";
+- the recorder's refusals and its Escape and click behaviour (criterion 7).
