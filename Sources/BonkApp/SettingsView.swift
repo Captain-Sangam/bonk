@@ -280,11 +280,12 @@ private final class ShortcutRecorder: ObservableObject {
             return
         }
 
-        guard !event.isARepeat, pending == nil else { return }
+        guard !event.isARepeat else { return }
         guard event.keyCode != UInt16(kVK_Escape) else {
             stop()
             return
         }
+        guard pending == nil else { return }
         do {
             pending = try Shortcut.recorded(
                 keyCode: event.keyCode,
