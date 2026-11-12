@@ -69,7 +69,7 @@ struct SettingsView: View {
                             .font(.subheadline.weight(.semibold))
                         TextField("Optional", text: $settings.awayName)
                             .textFieldStyle(.roundedBorder)
-                        Text("Shown on the away-screen, for example \"Ajay will be back soon.\"")
+                        Text("Shown on the away-screen, for example \"John will be back soon.\"")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

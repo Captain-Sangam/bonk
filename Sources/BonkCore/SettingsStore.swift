@@ -51,7 +51,7 @@ public final class SettingsStore: ObservableObject {
 
     public static let defaultAgentPatterns = "claude, codex, aider, ollama"
 
-    /// Optional name for the away-screen footer ("Ajay will be back soon"). Empty means "Back soon".
+    /// Optional name for the away-screen footer ("John will be back soon"). Empty means "Back soon".
     @Published public var awayName: String {
         didSet { defaults.set(awayName, forKey: Keys.awayName) }
     }
