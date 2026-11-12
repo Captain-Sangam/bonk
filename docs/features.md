@@ -31,7 +31,7 @@ Choose what Bonk shows while guarding in **Settings → Bonk mode**. The mode is
 
 - **Classic fox** — the original transparent overlay with the reacting fox; the desktop stays visible.
 - **Screen off** — an opaque black cover on every display, so the Mac looks powered off. The fox, its sounds, and Jev stay idle.
-- **Agents away-screen** — a minimal black screen on every display showing a lock, an `AWAY` lockup, an "agents at work" pill, a live waveform, the clock, and a "back soon" line. It lists the processes that match your configured agent names, updating as they start and stop, so a passerby sees that work is in progress and you will be back. Set your name in Settings to make the line read "Ajay will be back soon".
+- **Agents away-screen** — a minimal black screen on every display showing a lock, an `AWAY` lockup, an "agents at work" pill, a live waveform, the clock, and a "back soon" line. It lists the processes that match your configured agent names, updating as they start and stop, so a passerby sees that work is in progress and you will be back. Set your name in Settings to make the line read "John will be back soon".
 
 ## Intrusion camera
 
