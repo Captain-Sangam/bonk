@@ -12,12 +12,18 @@ public final class OverlayManager: OverlayManaging {
     private var mode: BonkMode = .classic
     private var agentMonitor: AgentMonitor?
     private let agentPatterns: () -> [String]
+    private let awayName: () -> String
 
     public var onFailure: ((String) -> Void)?
 
-    public init(characterEngine: CharacterEngine, agentPatterns: @escaping () -> [String] = { [] }) {
+    public init(
+        characterEngine: CharacterEngine,
+        agentPatterns: @escaping () -> [String] = { [] },
+        awayName: @escaping () -> String = { "" }
+    ) {
         self.characterEngine = characterEngine
         self.agentPatterns = agentPatterns
+        self.awayName = awayName
     }
 
     public func show(mode: BonkMode) throws {
@@ -81,7 +87,10 @@ public final class OverlayManager: OverlayManaging {
             case .screenOff:
                 window = BonkOverlayWindow(screen: screen, opaque: true, rootView: Color.black.ignoresSafeArea())
             case .agents:
-                let view = AwayScreenView(monitor: agentMonitor ?? AgentMonitor(patterns: agentPatterns()))
+                let view = AwayScreenView(
+                    monitor: agentMonitor ?? AgentMonitor(patterns: agentPatterns()),
+                    name: awayName()
+                )
                 window = BonkOverlayWindow(screen: screen, opaque: true, rootView: view)
             }
             window.setCapturingInput(isCapturingInput)

@@ -51,6 +51,11 @@ public final class SettingsStore: ObservableObject {
 
     public static let defaultAgentPatterns = "claude, codex, aider, ollama"
 
+    /// Optional name for the away-screen footer ("Ajay will be back soon"). Empty means "Back soon".
+    @Published public var awayName: String {
+        didSet { defaults.set(awayName, forKey: Keys.awayName) }
+    }
+
     @Published public private(set) var launchAtLogin: Bool
     @Published public private(set) var lastError: String?
 
@@ -72,6 +77,7 @@ public final class SettingsStore: ObservableObject {
         bonkMode = (defaults.string(forKey: Keys.bonkMode)).flatMap(BonkMode.init(rawValue:)) ?? .classic
         cameraMonitorEnabled = defaults.object(forKey: Keys.cameraMonitorEnabled) as? Bool ?? false
         agentPatterns = defaults.string(forKey: Keys.agentPatterns) ?? Self.defaultAgentPatterns
+        awayName = defaults.string(forKey: Keys.awayName) ?? ""
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
@@ -130,5 +136,6 @@ public final class SettingsStore: ObservableObject {
         static let bonkMode = "bonkMode"
         static let cameraMonitorEnabled = "cameraMonitorEnabled"
         static let agentPatterns = "agentPatterns"
+        static let awayName = "awayName"
     }
 }

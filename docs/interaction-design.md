@@ -12,7 +12,7 @@ Settings offers three modes, fixed for the duration of a guard session:
 
 - **Classic fox** — transparent overlays with the reacting fox described below.
 - **Screen off** — opaque black on every display, so the Mac looks powered off; the fox, sounds, and Jev stay idle.
-- **Agents away-screen** — a minimal black screen on every display with a lock, an `AWAY` lockup, a "running agents" pill, an animated waveform, and the clock. It lists the running processes that match the agent names configured in Settings.
+- **Agents away-screen** — a minimal black screen on every display with a lock, an `AWAY` lockup, an "agents at work" pill, an animated waveform, the clock, and a "back soon" line. It lists the running processes that match the agent names configured in Settings. When a name is set in Settings, the line reads "<name> will be back soon".
 
 Input blocking and the double-Escape unlock behave identically in every mode. System trackpad gestures (Spaces swipes, Mission Control, App Exposé, Launchpad, Show Desktop and Notification Centre) are blocked for the whole guarded session, including while the unlock sheet is showing. The optional intrusion camera also applies to every mode: on a genuine failed unlock it saves one photo to `~/Pictures/Bonk/`, and the menu reports captured attempts after you unlock.
 

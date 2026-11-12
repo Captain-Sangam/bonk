@@ -63,6 +63,16 @@ struct SettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Your name")
+                            .font(.subheadline.weight(.semibold))
+                        TextField("Optional", text: $settings.awayName)
+                            .textFieldStyle(.roundedBorder)
+                        Text("Shown on the away-screen, for example \"Ajay will be back soon.\"")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
 
